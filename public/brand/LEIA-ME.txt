@@ -1,0 +1,4 @@
+Coloque aqui os arquivos da marca enviados pelo cliente:
+  - logo.png     (fundo transparente, ~400px de largura)
+  - mascote.png  (pato com boné e coroa, fundo transparente, quadrado)
+Depois preencha os caminhos em src/lib/brand.ts.

@@ -1,0 +1,13 @@
+{
+  "name": "Duke | Drinks e Choperia",
+  "short_name": "Duke",
+  "description": "Pedidos e produção do Duke Drinks e Choperia",
+  "start_url": "/login",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f0f10",
+  "theme_color": "#0f0f10",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

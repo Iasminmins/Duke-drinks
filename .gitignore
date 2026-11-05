@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+*.tsbuildinfo
+next-env.d.ts
+.env*.local
+
+.qa
+
+# ferramentas locais e logs
+.playwright-mcp
+build.log
+*.log
+.vercel
+.DS_Store

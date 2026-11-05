@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens do Duke.
+ * Toda cor/fonte/raio do sistema sai daqui. Nada de hex solto nos componentes.
+ */
+@theme {
+  --color-bg: #0f0f10;
+  --color-bg-soft: #1a1a1c;
+  --color-surface: #232326;
+  --color-surface-2: #2c2c30;
+  --color-line: #36363b;
+
+  --color-cream: #f5ecd7;
+  --color-muted: #a8a196;
+  --color-subtle: #6f6a63;
+
+  --color-red: #c8102e;
+  --color-red-600: #a50d26;
+  --color-red-soft: #c8102e26;
+
+  --color-gold: #f5b800;
+  --color-gold-600: #d49f00;
+  --color-gold-soft: #f5b80022;
+
+  --color-ok: #3fb97a;
+  --color-ok-soft: #3fb97a22;
+  --color-warn: #f59e0b;
+  --color-warn-soft: #f59e0b22;
+  --color-info: #5aa9e6;
+  --color-info-soft: #5aa9e622;
+
+  --font-display: "Bebas Neue", "Oswald", Impact, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 12px;
+
+  --animate-pop: pop 320ms cubic-bezier(.34, 1.56, .64, 1);
+  --animate-fade-in: fade-in 180ms ease-out;
+  --animate-slide-up: slide-up 220ms cubic-bezier(.2, .8, .2, 1);
+  --animate-glow: glow 3s ease-out;
+
+  @keyframes pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.25); }
+    100% { transform: scale(1); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-up {
+    from { transform: translateY(16px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes glow {
+    0% { box-shadow: 0 0 0 2px var(--color-gold), 0 0 28px #f5b80066; }
+    100% { box-shadow: 0 0 0 0 transparent, 0 0 0 transparent; }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-cream);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--color-gold);
+    color: var(--color-bg);
+  }
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+  }
+}
+
+@layer components {
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+  }
+  /* textura sutil de "madeira escura" nos fundos de destaque */
+  .bg-pub {
+    background:
+      radial-gradient(120% 80% at 50% -10%, #c8102e33 0%, transparent 60%),
+      radial-gradient(80% 60% at 100% 0%, #f5b80014 0%, transparent 60%),
+      var(--color-bg);
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  body { background: #fff; color: #000; }
+  .no-print { display: none !important; }
+}
