@@ -89,12 +89,14 @@ create table caixas (
 -- só pode existir um caixa aberto por vez
 create unique index caixas_um_aberto_uq on caixas ((true)) where fechado_em is null;
 
--- Uma mesa pode ter várias comandas ativas (comandas individuais).
--- O código de 4 dígitos identifica a comanda dentro da mesa, por isso é único entre as ativas.
+-- Comanda individual: tem número (o que a equipe fala) e token secreto (vai no QR do cliente).
+-- A mesa é opcional (só indica onde a pessoa está). `codigo` (PIN antigo) não é mais usado.
 create table comandas (
   id text primary key default gen_random_uuid()::text,
-  mesa_id text not null references mesas(id),
-  codigo char(4) not null check (codigo ~ '^[0-9]{4}$'),
+  mesa_id text references mesas(id),
+  numero integer not null,
+  token text not null,
+  codigo char(4),
   status text not null default 'aberta' check (status in ('aberta','aguardando_pagamento','fechada','cancelada')),
   aberta_em timestamptz not null default now(),
   aberta_por text not null references usuarios(id),
@@ -109,7 +111,8 @@ create table comandas (
 );
 create index comandas_mesa_idx on comandas (mesa_id);
 create index comandas_status_idx on comandas (status);
-create unique index comandas_codigo_ativo_uq on comandas (mesa_id, codigo)
+create unique index comandas_token_uq on comandas (token);
+create unique index comandas_numero_ativo_uq on comandas (numero)
   where status in ('aberta','aguardando_pagamento');
 
 create sequence pedido_numero_seq start 101;

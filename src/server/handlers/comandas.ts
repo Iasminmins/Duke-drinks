@@ -25,7 +25,7 @@ async function autorizar(ctx: Ctx, id: string, codigo?: string): Promise<Comanda
   }
   if (!cm || !codigoConfere(cm, codigo)) {
     registrarFalha(chave);
-    throw new ServiceError("Código incorreto. Confira com o garçom.", "PROIBIDO");
+    throw new ServiceError("QR inválido ou expirado. Peça ajuda ao garçom.", "PROIBIDO");
   }
   limpar(chave);
   return cm;
@@ -51,7 +51,7 @@ export async function listarComandas(ctx: Ctx, status: StatusComanda[]): Promise
   const det = await detalhar(pool(), cms);
   return det.sort((a, b) => {
     if (a.status !== b.status) return a.status === "aguardando_pagamento" ? -1 : 1;
-    return a.mesaNumero - b.mesaNumero || a.abertaEm.localeCompare(b.abertaEm);
+    return a.numero - b.numero;
   });
 }
 
@@ -71,13 +71,6 @@ export async function historicoComandas(ctx: Ctx, f: FiltroHistorico): Promise<C
   );
   const det = await detalhar(pool(), cms);
   return det.sort((a, b) => (b.fechadaEm ?? "").localeCompare(a.fechadaEm ?? ""));
-}
-
-/** valida o código que o garçom passou ao cliente */
-export async function validarCodigo(ctx: Ctx, comandaId: string, codigo: string): Promise<boolean> {
-  const cm = await autorizar({ ...ctx, sessao: null }, comandaId, codigo);
-  if (cm.status !== "aberta") throw new ServiceError("Comanda não está aberta", "PROIBIDO");
-  return true;
 }
 
 export async function chamarGarcom(ctx: Ctx, comandaId: string, codigo?: string): Promise<void> {

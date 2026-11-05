@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft, Minus, Plus, Send } from "lucide-react";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { SkeletonLista } from "@/components/ui/skeleton";
 import { getCardapio } from "@/services/cardapio.service";
-import { listarMesasComStatus } from "@/services/mesas.service";
+import { listarComandasAtivas } from "@/services/mesas.service";
 import { criarPedido } from "@/services/pedidos.service";
 import { formatBRL } from "@/lib/format";
 import { mensagemErro } from "@/lib/errors";
@@ -22,26 +22,15 @@ type Linha = EscolhaProduto & { id: string };
 const valor = (l: Linha) => round2((l.produto.preco + l.adicionais.reduce((s, a) => s + a.preco, 0)) * l.quantidade);
 
 export default function LancarPedido() {
-  return (
-    <Suspense fallback={<SkeletonLista />}>
-      <LancarPedidoConteudo />
-    </Suspense>
-  );
-}
-
-function LancarPedidoConteudo() {
   const { numero } = useParams<{ numero: string }>();
-  const comandaParam = useSearchParams().get("c");
   const router = useRouter();
   const [produto, setProduto] = useState<Produto | null>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [revisar, setRevisar] = useState(false);
 
   const cardapioQ = useQuery({ queryKey: ["cardapio"], queryFn: getCardapio });
-  const mesasQ = useQuery({ queryKey: ["mesas-status"], queryFn: listarMesasComStatus });
-  const mesa = mesasQ.data?.find((m) => m.numero === Number(numero));
-  // comanda escolhida na tela da mesa (?c=...); sem ela, a primeira aberta
-  const comanda = mesa?.comandas.find((c) => c.id === comandaParam) ?? mesa?.comanda;
+  const ativasQ = useQuery({ queryKey: ["comandas-ativas"], queryFn: listarComandasAtivas });
+  const comanda = ativasQ.data?.find((c) => c.numero === Number(numero));
 
   const enviar = useMutation({
     mutationFn: () =>
@@ -57,14 +46,14 @@ function LancarPedidoConteudo() {
       }),
     onSuccess: (p) => {
       toast.success(`Pedido #${p.numero} enviado para produção`);
-      router.push(`/garcom/mesa/${numero}`);
+      router.push(`/garcom/comanda/${numero}`);
     },
     onError: (e) => toast.error(mensagemErro(e)),
   });
 
-  if (cardapioQ.isLoading || mesasQ.isLoading) return <SkeletonLista />;
+  if (cardapioQ.isLoading || ativasQ.isLoading) return <SkeletonLista />;
   if (!comanda) {
-    return <p className="py-10 text-center text-muted">Esta mesa não tem comanda aberta.</p>;
+    return <p className="py-10 text-center text-muted">Esta comanda não está aberta.</p>;
   }
 
   const qtd = linhas.reduce((s, l) => s + l.quantidade, 0);
@@ -77,7 +66,7 @@ function LancarPedidoConteudo() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="leading-tight">
-          <h1 className="font-display text-3xl">Pedido · Mesa {numero}</h1>
+          <h1 className="font-display text-3xl">Pedido · Comanda {numero}</h1>
           {comanda.clienteNome && <p className="text-sm text-gold">Comanda de {comanda.clienteNome}</p>}
         </div>
       </div>
@@ -106,7 +95,7 @@ function LancarPedidoConteudo() {
       <Dialog
         open={revisar}
         onClose={() => setRevisar(false)}
-        titulo={`Pedido da mesa ${numero}${comanda.clienteNome ? ` · ${comanda.clienteNome}` : ""}`}
+        titulo={`Pedido da comanda ${numero}${comanda.clienteNome ? ` · ${comanda.clienteNome}` : ""}`}
         rodape={
           <Button size="lg" block loading={enviar.isPending} disabled={!linhas.length} onClick={() => enviar.mutate()}>
             <Send className="h-5 w-5" /> Enviar · {formatBRL(total)}

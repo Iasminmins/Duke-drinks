@@ -14,11 +14,12 @@ export interface ItemCarrinho {
 }
 
 interface CartState {
-  mesa: number | null;
+  /** de quem é o carrinho (token da comanda): trocar de comanda zera */
+  dono: string | null;
   itens: ItemCarrinho[];
   /** incrementa a cada adição; usado para animar o contador */
   pulso: number;
-  setMesa: (mesa: number) => void;
+  setDono: (dono: string) => void;
   adicionar: (item: Omit<ItemCarrinho, "id">) => void;
   alterarQuantidade: (id: string, delta: number) => void;
   remover: (id: string) => void;
@@ -28,12 +29,11 @@ interface CartState {
 export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
-      mesa: null,
+      dono: null,
       itens: [],
       pulso: 0,
-      setMesa: (mesa) => {
-        // carrinho é por mesa: trocar de mesa zera
-        if (get().mesa !== mesa) set({ mesa, itens: [] });
+      setDono: (dono) => {
+        if (get().dono !== dono) set({ dono, itens: [] });
       },
       adicionar: (item) =>
         set((s) => {
@@ -57,7 +57,7 @@ export const useCart = create<CartState>()(
     {
       name: "duke:carrinho",
       storage: createJSONStorage(() => sessionStorage),
-      partialize: (s) => ({ mesa: s.mesa, itens: s.itens }),
+      partialize: (s) => ({ dono: s.dono, itens: s.itens }),
     },
   ),
 );

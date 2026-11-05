@@ -22,7 +22,7 @@ npm run build && npm run start
 
 A página inicial é um painel de demonstração com atalhos para todas as telas. Acessos de demonstração (senha `duke123`): `admin`, `rafael`/`bruna` (garçom), `marcos` (cozinha), `leo` (bar), `juliana` (caixa). **Troque as senhas antes de usar de verdade** (Admin → Usuários).
 
-Para testar no celular, rode `npm run dev -- -H 0.0.0.0` e acesse pelo IP do computador na mesma rede (ex.: `http://192.168.0.10:3000/m/12`).
+Para testar no celular, rode `npm run dev -- -H 0.0.0.0` e acesse pelo IP do computador na mesma rede (o link do cliente é o da comanda: `/c/<token>`, que o garçom mostra em “Mostrar QR”).
 
 > Os dados ficam no banco Neon (Postgres). O esquema está em `db/schema.sql`. As telas se atualizam sozinhas (consulta a cada 5 s com a aba visível e logo após cada ação).
 
@@ -35,35 +35,29 @@ Next.js 15 (App Router) · Postgres (Neon) via `pg` · React 19 · TypeScript ·
 | Rota | Quem acessa | O que faz |
 |---|---|---|
 | `/` | todos | painel da demo |
-| `/m/[mesa]` | cliente (sem login) | cardápio, carrinho, pedido, minha comanda, chamar garçom, pedir a conta |
+| `/c/[token]` | cliente (sem login) | cardápio, carrinho, pedido, minha comanda, chamar garçom, pedir a conta |
 | `/login` | equipe | login mockado por papel |
-| `/garcom` | garçom | mapa de mesas, abrir comanda, lançar pedido, prontos, chamados |
+| `/garcom` | garçom | lista de comandas, abrir comanda (número + QR), lançar pedido, prontos, chamados |
 | `/kds/cozinha`, `/kds/bar` | cozinha / bar | produção em 3 colunas com timer e alerta sonoro |
 | `/caixa` | caixa | comandas, baixa de pagamento, estorno, caixa do dia, histórico |
-| `/admin` | admin | dashboard, cardápio, setores, mesas & QR, usuários, configurações |
-| `/imprimir/qr` | admin | folha A4 com os QR codes das mesas |
+| `/admin` | admin | dashboard, cardápio, setores, mesas (opcionais), usuários, configurações |
+| `/imprimir/comanda/[numero]` | garçom / caixa | cartão da comanda com número e QR para imprimir |
 | `/403`, `/sessao-expirada`, `/offline`, 404 | — | telas de sistema |
 
 O **admin** acessa todas as áreas. A sessão da equipe expira em 12h (um expediente).
 
-## Fluxo completo em duas abas
+## Como funciona (comanda individual, sem mesa)
 
-1. Aba 1: abra `/m/11` (cliente). Aba 2: entre como **Cozinha** e abra `/kds/cozinha`. Clique em **Ativar som**.
-2. No cliente, adicione um petisco e envie. Quando pedir o código da mesa, use **3302**.
-3. O pedido aparece no KDS na hora, com destaque dourado e alerta. Avance: *Iniciar preparo → Marcar pronto*.
-4. Entre como **Garçom** em outra aba: o pedido aparece em *Prontos*. Marque como entregue.
-5. No cliente, abra *Minha comanda* → **Pedir a conta**.
-6. Entre como **Caixa**: a mesa aparece no topo. Registre um ou mais pagamentos (ex.: Pix + dinheiro com troco). Quando o total é quitado, a comanda fecha e a mesa é liberada.
+A unidade do sistema é a **comanda**, não a mesa. Cada comanda tem um **número** (como a equipe chama) e um **QR** próprio.
 
-Mesas já em uso na demo: 2 (código 4821), 4 (chamando, 1937), 8 (pediu a conta), 11 (3302), 16 (6610).
+1. O garçom (ou o caixa) toca em **Nova comanda** e informa nome e celular. Número do cartão e mesa são opcionais; sem número, o sistema usa o próximo livre.
+2. Em **Mostrar QR**, o cliente aponta a câmera: o cardápio abre direto na comanda dele, sem digitar código. Também dá para **copiar o link** (WhatsApp) ou **imprimir o cartão**.
+3. O cliente pede de qualquer lugar do bar. O pedido aparece no KDS (cozinha/bar) com o número da comanda, e o garçom recebe o aviso de pronto, chamado e conta.
+4. O cliente pede a conta pelo celular; o caixa busca pelo número ou nome da comanda e dá baixa. Paga a conta, o QR passa a mostrar “Conta paga” e o número volta a ficar livre.
 
 ## Segurança do QR
 
-O QR impresso é fixo (`/m/12`). Para evitar pedidos de fora do bar, o pedido só é aceito quando:
-- o garçom **abriu a comanda** da mesa; e
-- o cliente informou o **código de 4 dígitos** gerado na abertura (pedido uma vez por celular).
-
-Essa validação roda no servidor (`src/server/handlers`), com limite de tentativas contra quem tenta adivinhar o código. Nome e celular do cliente são obrigatórios.
+O QR leva um **token secreto** (24 caracteres aleatórios) por comanda, não adivinhável. O pedido só é aceito quando a comanda está aberta e o token confere. A validação roda no servidor (`src/server/handlers`), com limite de tentativas. Comanda encerrada ou cancelada não aceita pedidos.
 
 ## Estrutura
 

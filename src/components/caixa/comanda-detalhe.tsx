@@ -63,9 +63,9 @@ export function ComandaDetalhe({
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-line p-4 lg:px-6">
-        <span className="font-display text-5xl leading-none text-gold">{comanda.mesaNumero}</span>
+        <span className="font-display text-5xl leading-none text-gold">{comanda.numero}</span>
         <div>
-          <p className="font-display text-2xl leading-none">Mesa {comanda.mesaNumero}{comanda.clienteNome ? ` · ${comanda.clienteNome}` : ""}</p>
+          <p className="font-display text-2xl leading-none">Comanda {comanda.numero}{comanda.clienteNome ? ` · ${comanda.clienteNome}` : ""}</p>
           <p className="text-xs text-muted">
             Aberta {formatHora(comanda.abertaEm)}
             {comanda.fechadaEm && ` · fechada ${formatHora(comanda.fechadaEm)}`}
@@ -202,8 +202,8 @@ export function ComandaDetalhe({
         onConfirm={() => cancelarM.mutate()}
         loading={cancelarM.isPending}
         perigo
-        titulo={`Cancelar comanda da mesa ${comanda.mesaNumero}?`}
-        descricao="A mesa será liberada e a comanda não entra no faturamento. Use só para comandas abertas por engano."
+        titulo={`Cancelar comanda da mesa ${comanda.numero}?`}
+        descricao="A comanda não entra no faturamento. Use só para comandas abertas por engano."
         confirmar="Cancelar comanda"
       />
     </div>

@@ -32,7 +32,7 @@ export default function CaixaComandas() {
     .filter((c) => filtro === "todas" || c.status === filtro)
     .filter((c) => {
       const q = busca.trim().toLowerCase();
-      return !q || String(c.mesaNumero).startsWith(q) || (c.clienteNome ?? "").toLowerCase().includes(q);
+      return !q || String(c.numero).startsWith(q.replace(/^#/, "")) || (c.clienteNome ?? "").toLowerCase().includes(q);
     });
   const atual = q.data?.find((c) => c.id === selecionada);
   const aguardando = ativas.filter((c) => c.status === "aguardando_pagamento").length;
@@ -58,8 +58,8 @@ export default function CaixaComandas() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
               <input
                 inputMode="numeric"
-                placeholder="Buscar mesa"
-                aria-label="Buscar por número da mesa"
+                placeholder="Buscar comanda ou nome"
+                aria-label="Buscar por número da comanda ou nome"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value.replace(/\D/g, ""))}
                 className="h-11 w-full rounded-[10px] border border-line bg-bg-soft pl-9 pr-3 text-sm focus:border-gold focus:outline-none"
@@ -97,10 +97,10 @@ export default function CaixaComandas() {
                         c.status === "aguardando_pagamento" ? "bg-gold text-bg" : "bg-surface-2",
                       )}
                     >
-                      {c.mesaNumero}
+                      {c.numero}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">Mesa {c.mesaNumero}{c.clienteNome ? ` · ${c.clienteNome}` : ""}</span>
+                      <span className="block text-sm font-medium">Comanda {c.numero}{c.clienteNome ? ` · ${c.clienteNome}` : ""}</span>
                       <span className="block text-xs text-subtle">há {tempoDesde(c.abertaEm)} · {c.pedidos.length} pedido(s)</span>
                     </span>
                     <span className="text-right">
@@ -131,7 +131,7 @@ export default function CaixaComandas() {
             </>
           ) : (
             <div className="grid flex-1 place-items-center">
-              <EmptyState titulo="Selecione uma comanda" descricao="As mesas que pediram a conta aparecem primeiro." />
+              <EmptyState titulo="Selecione uma comanda" descricao="As comandas que pediram a conta aparecem primeiro." />
             </div>
           )}
         </section>

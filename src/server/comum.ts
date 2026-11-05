@@ -36,13 +36,13 @@ export function exigirEquipe(ctx: Ctx) {
 
 // ---------------------------------------------------------------- SQL de leitura
 export const COMANDA_SQL = `
-  select c.id, c.mesa_id as "mesaId", m.numero as "mesaNumero", c.codigo, c.status,
+  select c.id, c.numero, c.token, c.mesa_id as "mesaId", m.numero as "mesaNumero", c.status,
          c.aberta_em as "abertaEm", c.aberta_por as "abertaPor",
          c.fechada_em as "fechadaEm", c.fechada_por as "fechadaPor",
          c.cobrar_taxa_servico as "cobrarTaxaServico", c.desconto,
          c.chamando_garcom as "chamandoGarcom", c.chamado_em as "chamadoEm",
          c.cliente_nome as "clienteNome", c.cliente_celular as "clienteCelular"
-  from comandas c join mesas m on m.id = c.mesa_id`;
+  from comandas c left join mesas m on m.id = c.mesa_id`;
 
 export async function getTaxaServico(c: Q): Promise<number> {
   const r = await um<{ t: number }>(`select taxa_servico_padrao as t from estabelecimento limit 1`, [], c);
@@ -52,10 +52,10 @@ export async function getTaxaServico(c: Q): Promise<number> {
 export async function carregarPedidos(c: Q, comandaIds: string[]): Promise<Pedido[]> {
   if (!comandaIds.length) return [];
   const pedidos = await query<Omit<Pedido, "itens">>(
-    `select p.id, p.numero, p.comanda_id as "comandaId", m.numero as "mesaNumero", p.origem,
+    `select p.id, p.numero, p.comanda_id as "comandaId", c.numero as "comandaNumero", p.origem,
             p.criado_em as "criadoEm", p.atualizado_em as "atualizadoEm"
      from pedidos p
-     join comandas c on c.id = p.comanda_id join mesas m on m.id = c.mesa_id
+     join comandas c on c.id = p.comanda_id
      where p.comanda_id = any($1) order by p.criado_em, p.numero`,
     [comandaIds],
     c,
@@ -127,11 +127,11 @@ export async function comandaPorId(c: Q, id: string): Promise<Comanda | undefine
 }
 
 /**
- * Autoriza o acesso a uma comanda: equipe logada, OU o cliente com o código dela.
- * O código é o "segredo" do cliente; tentativas erradas são limitadas.
+ * Autoriza o acesso do cliente a uma comanda: o token do QR é o segredo dele.
+ * (O parâmetro `codigo` das chamadas RPC carrega esse token.)
  */
 export function codigoConfere(cm: Comanda, codigo?: string) {
-  return !!codigo && cm.codigo === codigo.trim();
+  return !!codigo && cm.token === codigo.trim();
 }
 
 /** converte erros do Postgres em mensagens amigáveis */

@@ -24,10 +24,6 @@ export function historicoComandas(f: FiltroHistorico): Promise<ComandaDetalhada[
 }
 
 /** valida o código que o garçom passou ao cliente */
-export function validarCodigo(comandaId: string, codigo: string): Promise<boolean> {
-  return rpc("validarCodigo", comandaId, codigo);
-}
-
 export function chamarGarcom(comandaId: string, codigo?: string): Promise<void> {
   return rpc("chamarGarcom", comandaId, codigo);
 }

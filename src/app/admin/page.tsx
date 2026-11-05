@@ -25,7 +25,7 @@ export default function Dashboard() {
         <Kpi icon={TrendingUp} label="Faturamento" valor={d && formatBRL(d.faturamentoDia)} destaque />
         <Kpi icon={Receipt} label="Ticket médio" valor={d && formatBRL(d.ticketMedio)} />
         <Kpi icon={ClipboardCheck} label="Comandas fechadas" valor={d && String(d.comandasFechadas)} />
-        <Kpi icon={ClipboardList} label="Mesas em uso agora" valor={d && String(d.comandasAbertas)} />
+        <Kpi icon={ClipboardList} label="Comandas abertas agora" valor={d && String(d.comandasAbertas)} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">

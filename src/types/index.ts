@@ -73,10 +73,13 @@ export interface Mesa {
 
 export interface Comanda {
   id: ID;
-  mesaId: ID;
-  mesaNumero: number;
-  /** código curto que o garçom passa ao cliente para liberar pedidos pelo QR */
-  codigo: string;
+  /** número da comanda: é como a equipe chama (ex.: "comanda 27") */
+  numero: number;
+  /** segredo do QR do cliente; só a equipe e o dono da comanda recebem */
+  token: string;
+  /** mesa é opcional: só indica onde a pessoa está */
+  mesaId?: ID;
+  mesaNumero?: number;
   status: StatusComanda;
   abertaEm: ISODate;
   abertaPor: ID;
@@ -114,7 +117,7 @@ export interface Pedido {
   id: ID;
   numero: number;
   comandaId: ID;
-  mesaNumero: number;
+  comandaNumero: number;
   origem: "cliente" | "garcom";
   criadoEm: ISODate;
   atualizadoEm: ISODate;
@@ -151,8 +154,8 @@ export interface Caixa {
 export interface TicketKds {
   pedidoId: ID;
   numero: number;
-  mesaNumero: number;
-  /** nome do dono da comanda, quando houver (ajuda a separar comandas da mesma mesa) */
+  comandaNumero: number;
+  /** nome do dono da comanda, quando houver */
   clienteNome?: string;
   criadoEm: ISODate;
   status: StatusPedido;
@@ -187,7 +190,8 @@ export interface MesaComStatus extends Mesa {
 export interface Notificacao {
   id: ID;
   tipo: "chamado" | "pronto" | "conta";
-  mesaNumero: number;
+  comandaNumero: number;
+  clienteNome?: string;
   mensagem: string;
   criadoEm: ISODate;
   refId: ID;

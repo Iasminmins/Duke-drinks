@@ -3,8 +3,14 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Input } from "@/components/ui/input";
+import { Field, Input, Select } from "@/components/ui/input";
 import { formatarCelular, mascaraCelular } from "@/lib/format";
+import type { Mesa } from "@/types";
+
+export interface OpcoesComanda {
+  mesaId?: string;
+  numero?: number;
+}
 
 /** nome + celular do dono da comanda (abrir comanda nova ou corrigir dados) */
 export function ClienteDialog({
@@ -15,6 +21,7 @@ export function ClienteDialog({
   inicial,
   confirmar,
   loading,
+  mesas,
   onSalvar,
 }: {
   open: boolean;
@@ -24,18 +31,28 @@ export function ClienteDialog({
   inicial?: { nome?: string; celular?: string };
   confirmar: string;
   loading?: boolean;
-  onSalvar: (nome: string, celular: string) => void;
+  /** quando informado (abrir comanda), mostra os campos opcionais de mesa e nº do cartão */
+  mesas?: Mesa[];
+  onSalvar: (nome: string, celular: string, opcoes: OpcoesComanda) => void;
 }) {
   const [nome, setNome] = useState("");
   const [celular, setCelular] = useState("");
+  const [mesaId, setMesaId] = useState("");
+  const [numero, setNumero] = useState("");
   const pronto = nome.trim().length >= 2 && celular.replace(/\D/g, "").length >= 10;
+  const abrindo = !!mesas;
 
   useEffect(() => {
     if (open) {
       setNome(inicial?.nome ?? "");
       setCelular(formatarCelular(inicial?.celular));
+      setMesaId("");
+      setNumero("");
     }
   }, [open, inicial?.nome, inicial?.celular]);
+
+  const enviar = () =>
+    onSalvar(nome, celular, { mesaId: mesaId || undefined, numero: numero ? Number(numero) : undefined });
 
   return (
     <Dialog
@@ -45,7 +62,7 @@ export function ClienteDialog({
       descricao={descricao}
       largura="sm"
       rodape={
-        <Button size="lg" block loading={loading} disabled={!pronto} onClick={() => pronto && onSalvar(nome, celular)}>
+        <Button size="lg" block loading={loading} disabled={!pronto} onClick={() => pronto && enviar()}>
           {confirmar}
         </Button>
       }
@@ -54,7 +71,7 @@ export function ClienteDialog({
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (pronto && !loading) onSalvar(nome, celular);
+          if (pronto && !loading) enviar();
         }}
       >
         <Field label="Nome do cliente" htmlFor="cmd-nome">
@@ -71,6 +88,30 @@ export function ClienteDialog({
             placeholder="(24) 99999-8888"
           />
         </Field>
+        {abrindo && (
+          <>
+            <Field label="Nº do cartão (opcional)" htmlFor="cmd-num" dica="Deixe vazio para usar o próximo número livre.">
+              <Input
+                id="cmd-num"
+                inputMode="numeric"
+                autoComplete="off"
+                value={numero}
+                onChange={(e) => setNumero(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="ex.: 27"
+              />
+            </Field>
+            {mesas.length > 0 && (
+              <Field label="Mesa (opcional)" htmlFor="cmd-mesa" dica="Só se a pessoa for ficar numa mesa. O pedido é sempre da comanda.">
+                <Select id="cmd-mesa" value={mesaId} onChange={(e) => setMesaId(e.target.value)}>
+                  <option value="">Sem mesa</option>
+                  {mesas.filter((m) => m.ativa).map((m) => (
+                    <option key={m.id} value={m.id}>Mesa {m.numero}</option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+          </>
+        )}
         <button type="submit" className="sr-only" tabIndex={-1}>
           {confirmar}
         </button>

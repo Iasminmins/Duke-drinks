@@ -17,7 +17,7 @@ export default function ProntosPage() {
   const q = useQuery({ queryKey: ["notificacoes"], queryFn: notificacoesGarcom });
   const entregar = useMutation({
     mutationFn: marcarEntregue,
-    onSuccess: () => toast.success("Entregue na mesa"),
+    onSuccess: () => toast.success("Entregue ao cliente"),
     onError: (e) => toast.error(mensagemErro(e)),
   });
   const prontos = (q.data ?? []).filter((n) => n.tipo === "pronto");
@@ -31,11 +31,11 @@ export default function ProntosPage() {
         {q.data && prontos.length === 0 && <EmptyState titulo="Tudo entregue" descricao="Quando a cozinha ou o bar marcar algo como pronto, aparece aqui." />}
         {prontos.map((n) => (
           <div key={n.id} className="flex items-center gap-3 rounded-card border border-ok/50 bg-surface p-3">
-            <Link href={`/garcom/mesa/${n.mesaNumero}`} className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-ok-soft font-display text-3xl text-ok">
-              {n.mesaNumero}
+            <Link href={`/garcom/comanda/${n.comandaNumero}`} className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-ok-soft font-display text-3xl text-ok">
+              {n.comandaNumero}
             </Link>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{n.mensagem}</p>
+              <p className="text-sm font-medium">{n.clienteNome ? `${n.clienteNome}: ` : ""}{n.mensagem}</p>
               <p className="text-xs text-subtle">pronto há {tempoDesde(n.criadoEm, agora)}</p>
             </div>
             <Button variant="success" size="sm" onClick={() => entregar.mutate(n.refId)}>

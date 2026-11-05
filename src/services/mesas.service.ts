@@ -1,38 +1,36 @@
-import type { Comanda, Mesa, MesaComStatus } from "@/types";
+import type { Comanda, ComandaDetalhada, Mesa, StatusComanda } from "@/types";
 import { rpc } from "./_rpc";
 
-export function listarMesasComStatus(): Promise<MesaComStatus[]> {
-  return rpc("listarMesasComStatus");
+/** comandas em andamento (garçom e caixa) */
+export function listarComandasAtivas(): Promise<ComandaDetalhada[]> {
+  return rpc("listarComandasAtivas");
 }
 
 export function listarMesas(): Promise<Mesa[]> {
   return rpc("listarMesas");
 }
 
-/** usado pela tela do cliente: só dados públicos da mesa */
-export function getMesaPublica(numero: number): Promise<{ mesa: Mesa; comandasAbertas: number }> {
-  return rpc("getMesaPublica", numero);
-}
-
 export interface ComandaPublica {
   id: string;
+  numero: number;
+  status: StatusComanda;
   clienteNome?: string;
   clienteCelular?: string;
 }
 
-/** cliente digita o código de 4 dígitos e entra na SUA comanda (a mesa pode ter várias) */
-export function entrarNaComanda(mesaNumero: number, codigo: string): Promise<ComandaPublica> {
-  return rpc("entrarNaComanda", mesaNumero, codigo);
+/** o cliente escaneou o QR da comanda: o token é o segredo dele */
+export function entrarPorQr(token: string): Promise<ComandaPublica> {
+  return rpc("entrarPorQr", token);
 }
 
-/** garçom abre a comanda (nome e celular obrigatórios); o usuário vem da sessão no servidor */
-export function abrirComanda(
-  mesaId: string,
-  _usuarioId: string,
-  cliente: { nome: string; celular: string },
-): Promise<Comanda> {
-  void _usuarioId;
-  return rpc("abrirComanda", mesaId, null, cliente);
+/** abre uma comanda individual; mesa e número do cartão são opcionais */
+export function abrirComanda(dados: {
+  nome: string;
+  celular: string;
+  mesaId?: string | null;
+  numero?: number | null;
+}): Promise<Comanda> {
+  return rpc("abrirComanda", dados);
 }
 
 export function salvarMesa(dados: Omit<Mesa, "id"> & { id?: string }): Promise<Mesa> {

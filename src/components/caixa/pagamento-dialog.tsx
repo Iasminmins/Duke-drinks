@@ -49,7 +49,7 @@ export function PagamentoDialog({ comanda, open, onClose }: { comanda: ComandaDe
     onSuccess: ({ comandaFechada }) => {
       toast.success(
         comandaFechada
-          ? `Mesa ${comanda.mesaNumero} quitada e liberada`
+          ? `Comanda ${comanda.numero} quitada`
           : `${FORMA_LABEL[forma]} de ${formatBRL(valor)} registrado`,
         { description: troco > 0 ? `Troco: ${formatBRL(troco)}` : undefined },
       );
@@ -62,7 +62,7 @@ export function PagamentoDialog({ comanda, open, onClose }: { comanda: ComandaDe
     <Dialog
       open={open}
       onClose={onClose}
-      titulo={`Registrar pagamento · Mesa ${comanda.mesaNumero}`}
+      titulo={`Registrar pagamento · Comanda ${comanda.numero}`}
       descricao={`Restante a receber: ${formatBRL(restante)}`}
       largura="lg"
       rodape={

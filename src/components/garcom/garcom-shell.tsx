@@ -29,7 +29,7 @@ export function GarcomShell({ children }: { children: React.ReactNode }) {
       const novos = alertas.filter((x) => !vistos.current!.has(x.id));
       if (novos.length) {
         tocarAlerta();
-        toast(novos[0].tipo === "chamado" ? "🔔 Uma mesa está chamando" : "🧾 Uma mesa pediu a conta", {
+        toast(novos[0].tipo === "chamado" ? "🔔 Um cliente está chamando" : "🧾 Um cliente pediu a conta", {
           action: { label: "Ver", onClick: () => (window.location.href = "/garcom/chamados") },
         });
       }
@@ -38,13 +38,13 @@ export function GarcomShell({ children }: { children: React.ReactNode }) {
   }, [notifQ.data]);
 
   const itens = [
-    { href: "/garcom", label: "Mesas", icon: LayoutGrid, exato: true },
+    { href: "/garcom", label: "Comandas", icon: LayoutGrid, exato: true },
     { href: "/garcom/prontos", label: "Prontos", icon: CheckCheck, badge: prontos },
     { href: "/garcom/chamados", label: "Chamados", icon: BellRing, badge: chamados, alerta: true },
     { href: "/garcom/perfil", label: "Perfil", icon: UserRound },
   ];
   const ativo = (href: string, exato?: boolean) =>
-    exato ? path === href || path.startsWith("/garcom/mesa") : path.startsWith(href);
+    exato ? path === href || path.startsWith("/garcom/comanda") : path.startsWith(href);
 
   return (
     <div className="min-h-dvh bg-bg pb-[calc(72px+env(safe-area-inset-bottom))]">

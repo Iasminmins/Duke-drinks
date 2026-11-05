@@ -225,7 +225,7 @@ function OrderCard({
       )}
     >
       <header className="flex items-center gap-3 border-b border-line px-3 py-2.5">
-        <span className="font-display text-4xl leading-none text-gold">M{ticket.mesaNumero}</span>
+        <span className="font-display text-4xl leading-none text-gold">#{ticket.comandaNumero}</span>
         <span className="min-w-0 truncate text-xs text-subtle">#{ticket.numero}{ticket.clienteNome ? ` · ${ticket.clienteNome}` : ""}</span>
         <span className={cn("ml-auto rounded-md px-2 py-1 font-mono text-sm font-bold tabular-nums", timerCor)}>
           {tempoDesde(ticket.criadoEm, agora)}

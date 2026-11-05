@@ -17,7 +17,7 @@ const NAV: ItemNav[] = [
     ],
   },
   { href: "/admin/setores", label: "Setores", icon: Warehouse },
-  { href: "/admin/mesas", label: "Mesas & QR", icon: QrCode },
+  { href: "/admin/mesas", label: "Mesas", icon: QrCode },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
 ];
@@ -28,7 +28,7 @@ const MIGALHAS = {
   "/admin/categorias": "Categorias",
   "/admin/adicionais": "Adicionais",
   "/admin/setores": "Setores",
-  "/admin/mesas": "Mesas & QR",
+  "/admin/mesas": "Mesas",
   "/admin/usuarios": "Usuários",
   "/admin/configuracoes": "Configurações",
 };

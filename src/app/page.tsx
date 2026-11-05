@@ -2,14 +2,13 @@ import Link from "next/link";
 import { ChefHat, CircleDollarSign, ConciergeBell, Martini, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Coroa } from "@/components/brand/coroa";
-import { MesasDemo } from "@/components/home/mesas-demo";
 
 const EQUIPE = [
-  { href: "/garcom", label: "Garçom", desc: "Mapa de mesas, abrir comanda, chamados", icon: ConciergeBell },
+  { href: "/garcom", label: "Garçom", desc: "Abrir comanda com QR, lançar pedidos, chamados", icon: ConciergeBell },
   { href: "/kds/cozinha", label: "Cozinha", desc: "KDS de petiscos e porções", icon: ChefHat },
   { href: "/kds/bar", label: "Bar", desc: "KDS de chopp e drinks", icon: Martini },
   { href: "/caixa", label: "Caixa", desc: "Baixa de pagamentos e fechamento", icon: CircleDollarSign },
-  { href: "/admin", label: "Admin", desc: "Cardápio, mesas, QR e relatórios", icon: ShieldCheck },
+  { href: "/admin", label: "Admin", desc: "Cardápio, mesas e relatórios", icon: ShieldCheck },
 ];
 
 export default function Home() {
@@ -23,13 +22,6 @@ export default function Home() {
             Os dados ficam no banco de dados na nuvem. Qualquer aparelho conectado vê o mesmo movimento, em tempo real.
           </p>
         </div>
-
-        <section className="mt-12">
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-gold">
-            <Coroa className="h-3 w-5" /> Experiência do cliente (QR da mesa)
-          </h2>
-          <MesasDemo />
-        </section>
 
         <section className="mt-10">
           <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-gold">
@@ -50,11 +42,11 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mt-10 rounded-card border border-line bg-bg-soft p-5 text-sm text-muted">
+        <section className="mt-12 rounded-card border border-line bg-bg-soft p-5 text-sm text-muted">
           <p className="font-semibold text-cream">Roteiro rápido de demonstração</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>Entre como <b className="text-cream">Garçom</b> (<b className="text-gold">rafael</b> / <b className="text-gold">duke123</b>), abra uma mesa e informe nome e celular do cliente. O sistema gera o <b className="text-cream">código da comanda</b>.</li>
-            <li>Em outra aba, abra o <b className="text-cream">cardápio da mesa</b> (cliente), faça um pedido e digite o código.</li>
+            <li>Entre como <b className="text-cream">Garçom</b> (<b className="text-gold">rafael</b> / <b className="text-gold">duke123</b>), toque em <b className="text-cream">Nova comanda</b> e informe nome e celular do cliente. O sistema gera o <b className="text-cream">número</b> e o <b className="text-cream">QR da comanda</b>.</li>
+            <li>Em “Mostrar QR”, copie o link e abra em outra aba (cliente): o cardápio já abre na comanda, sem digitar código. Faça um pedido.</li>
             <li>Entre como <b className="text-cream">Cozinha</b> (<b className="text-gold">marcos</b>) ou <b className="text-cream">Bar</b> (<b className="text-gold">leo</b>): o pedido aparece na tela de produção. Avance até “Pronto”.</li>
             <li>O garçom recebe o aviso e marca como entregue. O cliente acompanha tudo em “Minha comanda”, pede a conta e o <b className="text-cream">Caixa</b> (<b className="text-gold">juliana</b>) dá baixa.</li>
           </ol>

@@ -23,12 +23,12 @@ export async function criarPedido(ctx: Ctx, dados: NovoPedido): Promise<Pedido> 
     }
     if (!cm || !codigoConfere(cm as Comanda, dados?.codigo)) {
       registrarFalha(chave);
-      throw new ServiceError("Código da mesa inválido. Peça um novo código ao garçom.", "PROIBIDO");
+      throw new ServiceError("QR da comanda inválido. Peça ajuda ao garçom.", "PROIBIDO");
     }
     limpar(chave);
   }
   if (!cm || cm.status !== "aberta") {
-    throw new ServiceError("A comanda desta mesa não está aberta para pedidos", "PROIBIDO");
+    throw new ServiceError("Esta comanda não está aberta para pedidos", "PROIBIDO");
   }
   const itensEntrada = Array.isArray(dados.itens) ? dados.itens : [];
   if (!itensEntrada.length) throw new ServiceError("O pedido está vazio");
@@ -97,17 +97,16 @@ export async function listarTickets(ctx: Ctx, setorSlug: string): Promise<Ticket
   const rows = await query<{
     pedidoId: string;
     numero: number;
-    mesaNumero: number;
+    comandaNumero: number;
     clienteNome: string | null;
     criadoEm: string;
   } & Omit<ItemPedido, "adicionais">>(
-    `select p.id as "pedidoId", p.numero, m.numero as "mesaNumero", c.cliente_nome as "clienteNome", p.criado_em as "criadoEm",
+    `select p.id as "pedidoId", p.numero, c.numero as "comandaNumero", c.cliente_nome as "clienteNome", p.criado_em as "criadoEm",
             i.id, i.produto_id as "produtoId", i.nome, i.preco_unitario as "precoUnitario", i.quantidade,
             i.observacao, i.setor_id as "setorId", i.status
      from itens_pedido i
      join pedidos p on p.id = i.pedido_id
      join comandas c on c.id = p.comanda_id
-     join mesas m on m.id = c.mesa_id
      join setores s on s.id = i.setor_id
      where s.slug = $1 and c.status in ('aberta','aguardando_pagamento')
        and i.status not in ('entregue','cancelado')
@@ -129,7 +128,7 @@ export async function listarTickets(ctx: Ctx, setorSlug: string): Promise<Ticket
       t = {
         pedidoId: r.pedidoId,
         numero: r.numero,
-        mesaNumero: r.mesaNumero,
+        comandaNumero: r.comandaNumero,
         clienteNome: r.clienteNome ?? undefined,
         criadoEm: r.criadoEm,
         status: "recebido",
@@ -226,10 +225,10 @@ export async function cancelarItem(ctx: Ctx, pedidoId: string, itemId: string): 
 export async function notificacoesGarcom(ctx: Ctx): Promise<Notificacao[]> {
   exigir(ctx, "garcom");
   const out: Notificacao[] = [];
-  const cms = await query<{ id: string; mesaNumero: number; status: string; chamando: boolean; chamadoEm: string | null; abertaEm: string }>(
-    `select c.id, m.numero as "mesaNumero", c.status, c.chamando_garcom as chamando,
+  const cms = await query<{ id: string; comandaNumero: number; clienteNome: string | null; status: string; chamando: boolean; chamadoEm: string | null; abertaEm: string }>(
+    `select c.id, c.numero as "comandaNumero", c.cliente_nome as "clienteNome", c.status, c.chamando_garcom as chamando,
             c.chamado_em as "chamadoEm", c.aberta_em as "abertaEm"
-     from comandas c join mesas m on m.id = c.mesa_id
+     from comandas c
      where c.status in ('aberta','aguardando_pagamento')`,
   );
   for (const c of cms) {
@@ -237,22 +236,22 @@ export async function notificacoesGarcom(ctx: Ctx): Promise<Notificacao[]> {
       out.push({
         id: `ch_${c.id}`,
         tipo: "chamado",
-        mesaNumero: c.mesaNumero,
+        comandaNumero: c.comandaNumero,
+        clienteNome: c.clienteNome ?? undefined,
         mensagem: "Cliente chamando o garçom",
         criadoEm: c.chamadoEm ?? c.abertaEm,
         refId: c.id,
       });
     }
     if (c.status === "aguardando_pagamento") {
-      out.push({ id: `ct_${c.id}`, tipo: "conta", mesaNumero: c.mesaNumero, mensagem: "Pediu a conta", criadoEm: c.abertaEm, refId: c.id });
+      out.push({ id: `ct_${c.id}`, tipo: "conta", comandaNumero: c.comandaNumero, clienteNome: c.clienteNome ?? undefined, mensagem: "Pediu a conta", criadoEm: c.abertaEm, refId: c.id });
     }
   }
-  const prontos = await query<{ pedidoId: string; mesaNumero: number; atualizadoEm: string; qtd: number; nome: string }>(
-    `select p.id as "pedidoId", m.numero as "mesaNumero", p.atualizado_em as "atualizadoEm", i.quantidade as qtd, i.nome
+  const prontos = await query<{ pedidoId: string; comandaNumero: number; clienteNome: string | null; atualizadoEm: string; qtd: number; nome: string }>(
+    `select p.id as "pedidoId", c.numero as "comandaNumero", c.cliente_nome as "clienteNome", p.atualizado_em as "atualizadoEm", i.quantidade as qtd, i.nome
      from itens_pedido i
      join pedidos p on p.id = i.pedido_id
      join comandas c on c.id = p.comanda_id
-     join mesas m on m.id = c.mesa_id
      where i.status = 'pronto' and c.status in ('aberta','aguardando_pagamento')
      order by p.criado_em, i.seq`,
   );
@@ -262,7 +261,8 @@ export async function notificacoesGarcom(ctx: Ctx): Promise<Notificacao[]> {
     out.push({
       id: `pr_${pedidoId}`,
       tipo: "pronto",
-      mesaNumero: rs[0].mesaNumero,
+      comandaNumero: rs[0].comandaNumero,
+      clienteNome: rs[0].clienteNome ?? undefined,
       mensagem: rs.map((r) => `${r.qtd}× ${r.nome}`).join(", "),
       criadoEm: rs[0].atualizadoEm,
       refId: pedidoId,

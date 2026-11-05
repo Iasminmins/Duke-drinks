@@ -72,7 +72,7 @@ export default function HistoricoPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wider text-subtle">
-                  <th className="px-4 py-3 font-medium">Mesa</th>
+                  <th className="px-4 py-3 font-medium">Comanda</th>
                   <th className="px-4 py-3 font-medium">Abertura</th>
                   <th className="px-4 py-3 font-medium">Fechamento</th>
                   <th className="px-4 py-3 font-medium">Pagamentos</th>
@@ -84,7 +84,7 @@ export default function HistoricoPage() {
               <tbody className="divide-y divide-line">
                 {q.data.map((c) => (
                   <tr key={c.id} onClick={() => setAberta(c.id)} className="cursor-pointer hover:bg-surface-2">
-                    <td className="px-4 py-3 font-display text-2xl text-gold">{c.mesaNumero}{c.clienteNome && <span className="block font-sans text-xs font-normal text-muted">{c.clienteNome}</span>}</td>
+                    <td className="px-4 py-3 font-display text-2xl text-gold">{c.numero}{c.clienteNome && <span className="block font-sans text-xs font-normal text-muted">{c.clienteNome}</span>}</td>
                     <td className="px-4 py-3 text-muted">{formatDataHora(c.abertaEm)}</td>
                     <td className="px-4 py-3 text-muted">{c.fechadaEm ? formatDataHora(c.fechadaEm) : "—"}</td>
                     <td className="px-4 py-3">
@@ -103,7 +103,7 @@ export default function HistoricoPage() {
             {q.data.map((c) => (
               <li key={c.id}>
                 <button onClick={() => setAberta(c.id)} className="flex w-full items-center gap-3 rounded-card border border-line bg-surface p-3 text-left">
-                  <span className="font-display text-3xl text-gold">{c.mesaNumero}</span>
+                  <span className="font-display text-3xl text-gold">{c.numero}</span>
                   <span className="flex-1 text-xs text-muted">
                     {c.fechadaEm ? formatDataHora(c.fechadaEm) : "—"} · {nome(c.fechadaPor)}
                   </span>
@@ -115,7 +115,7 @@ export default function HistoricoPage() {
         </>
       )}
 
-      <Dialog open={!!atual} onClose={() => setAberta(null)} titulo={`Comanda · Mesa ${atual?.mesaNumero ?? ""}`} largura="xl" esconderTitulo>
+      <Dialog open={!!atual} onClose={() => setAberta(null)} titulo={`Comanda ${atual?.numero ?? ""}`} largura="xl" esconderTitulo>
         {atual && (
           <div className="-mx-5 -mb-5">
             <ComandaDetalhe comanda={atual} taxaPercent={estQ.data?.taxaServicoPadrao ?? 10} caixaAberto={false} somenteLeitura />
