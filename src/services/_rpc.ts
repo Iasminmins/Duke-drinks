@@ -6,6 +6,7 @@ interface Resposta {
   erro?: string;
   codigo?: ServiceError["code"];
   semSessao?: boolean;
+  assinaturaBloqueada?: boolean;
 }
 
 /**
@@ -40,10 +41,17 @@ export async function rpc<T>(nome: string, ...args: unknown[]): Promise<T> {
     const p = window.location.pathname;
     if (!p.startsWith("/sessao-expirada") && !p.startsWith("/login")) {
       try {
-        localStorage.removeItem("duke:sessao");
+        localStorage.removeItem("sessao");
       } catch {}
       window.location.assign("/sessao-expirada");
     }
+  }
+
+  // assinatura vencida ou suspensa: a equipe vai para a tela de assinatura
+  if (res.status === 402 && json.assinaturaBloqueada && typeof window !== "undefined") {
+    const p = window.location.pathname;
+    const equipe = !p.startsWith("/c/") && !p.startsWith("/login") && !p.startsWith("/assinatura");
+    if (equipe) window.location.assign("/assinatura");
   }
   throw new ServiceError(json.erro ?? "Algo deu errado. Tente novamente.", json.codigo ?? "INVALIDO");
 }

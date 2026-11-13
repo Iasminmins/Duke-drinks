@@ -3,6 +3,7 @@ import { calcularTotais } from "@/lib/calc";
 import { ServiceError } from "@/services/_base";
 import type { Comanda, ComandaDetalhada, ItemPedido, Pagamento, Papel, Pedido, Usuario } from "@/types";
 import { query, um, type Q } from "./db";
+import type { Tenant } from "./tenant";
 
 /** sem sessão válida (cookie ausente/expirado) -> HTTP 401 */
 export class SemSessao extends Error {
@@ -13,11 +14,22 @@ export class SemSessao extends Error {
 }
 
 export interface Ctx {
-  /** usuário da equipe com sessão válida (já conferido no banco: existe e está ativo) */
+  /** usuário da equipe com sessão válida (já conferido no banco: existe, está ativo e é deste negócio) */
   sessao: { uid: string; papel: Papel } | null;
+  /** negócio do endereço acessado (null no site da plataforma) */
+  tenant: Tenant | null;
+  /** o dono da plataforma está logado (só no domínio principal) */
+  plataformaLogada: boolean;
   ip: string;
   iniciarSessao: (u: Usuario) => void;
   encerrarSessao: () => void;
+  iniciarSessaoPlataforma: () => void;
+}
+
+/** exige que a chamada venha do endereço de um negócio */
+export function exigirTenant(ctx: Ctx): Tenant {
+  if (!ctx.tenant) throw new ServiceError("Estabelecimento não encontrado", "NAO_ENCONTRADO");
+  return ctx.tenant;
 }
 
 /** exige equipe logada com um dos papéis (admin sempre pode) */

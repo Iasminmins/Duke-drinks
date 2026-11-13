@@ -3,14 +3,17 @@ import { ServiceError } from "@/services/_base";
 import type { Estabelecimento, Papel, Usuario } from "@/types";
 import { query, tx, um } from "../db";
 import { bloqueado, limpar, registrarFalha } from "../limite";
-import { exigir, erroAmigavel, type Ctx } from "../comum";
+import { exigir, exigirEquipe, exigirTenant, erroAmigavel, type Ctx } from "../comum";
+import { situacao } from "../tenant";
+import { plano as planoDe, PLANOS } from "@/lib/planos";
 
 const PAPEIS: Papel[] = ["admin", "caixa", "garcom", "cozinha", "bar"];
 const USUARIO_SQL = `select id, nome, papel, ativo, login from usuarios`;
 
 export async function login(ctx: Ctx, usuario: unknown, senha: unknown): Promise<Usuario> {
+  exigirTenant(ctx);
   const nome = String(usuario ?? "").trim();
-  const chave = `login:${ctx.ip}:${nome.toLowerCase()}`;
+  const chave = `login:${ctx.tenant!.id}:${ctx.ip}:${nome.toLowerCase()}`;
   if (bloqueado(chave, 5, 60_000)) {
     throw new ServiceError("Muitas tentativas. Aguarde 1 minuto e tente de novo.", "PROIBIDO");
   }
@@ -70,6 +73,21 @@ export async function salvarUsuario(ctx: Ctx, dados: DadosUsuario): Promise<Usua
   if (senha && senha.length < 4) throw new ServiceError("A senha precisa de pelo menos 4 caracteres");
   const ativo = dados.ativo !== false;
 
+  // limite de usuários ativos do plano
+  const limite = planoDe(ctx.tenant?.plano).limiteUsuarios;
+  if (limite !== null && ativo) {
+    const r = await um<{ n: number }>(
+      `select count(*)::int as n from usuarios where ativo and ($1::text is null or id <> $1)`,
+      [dados.id ?? null],
+    );
+    if (r && r.n >= limite) {
+      throw new ServiceError(
+        `Seu plano permite até ${limite} usuários ativos. Desative alguém ou mude para o plano ${PLANOS.profissional.nome}.`,
+        "CONFLITO",
+      );
+    }
+  }
+
   try {
     return await tx(async (c) => {
       if (dados.id) {
@@ -108,13 +126,21 @@ export async function alternarUsuarioAtivo(ctx: Ctx, id: string): Promise<Usuari
     );
     if (!u) throw new ServiceError("Usuário não encontrado", "NAO_ENCONTRADO");
     await garantirUmAdmin(c);
+    const limite = planoDe(ctx.tenant?.plano).limiteUsuarios;
+    if (u.ativo && limite !== null) {
+      const r = await um<{ n: number }>(`select count(*)::int as n from usuarios where ativo`, [], c);
+      if (r && r.n > limite) {
+        throw new ServiceError(`Seu plano permite até ${limite} usuários ativos.`, "CONFLITO");
+      }
+    }
     return u;
   });
 }
 
 // ------------------------------------------------------------------ estabelecimento
 const EST_SQL = `select id, nome, logo_url as "logoUrl", taxa_servico_padrao as "taxaServicoPadrao",
-  horario_funcionamento as "horarioFuncionamento", mensagem_topo as "mensagemTopo", endereco from estabelecimento limit 1`;
+  horario_funcionamento as "horarioFuncionamento", mensagem_topo as "mensagemTopo", endereco,
+  cor_primaria as "corPrimaria" from estabelecimento limit 1`;
 
 export async function getEstabelecimento(): Promise<Estabelecimento> {
   const e = await um<Estabelecimento>(EST_SQL);
@@ -129,6 +155,7 @@ const COLUNAS_EST: Record<string, string> = {
   horarioFuncionamento: "horario_funcionamento",
   mensagemTopo: "mensagem_topo",
   endereco: "endereco",
+  corPrimaria: "cor_primaria",
 };
 
 export async function salvarEstabelecimento(ctx: Ctx, dados: Partial<Estabelecimento>): Promise<Estabelecimento> {
@@ -146,6 +173,9 @@ export async function salvarEstabelecimento(ctx: Ctx, dados: Partial<Estabelecim
     } else if (k === "logoUrl") {
       v = v ? String(v) : null;
       if (v && (v as string).length > 2_000_000) throw new ServiceError("Imagem muito grande (máx. cerca de 1,5 MB)");
+    } else if (k === "corPrimaria") {
+      v = String(v ?? "").trim();
+      if (!/^#[0-9a-fA-F]{6}$/.test(v as string)) throw new ServiceError("Cor inválida (use o formato #RRGGBB)");
     } else {
       v = String(v ?? "");
       if (k === "nome" && !(v as string).trim()) throw new ServiceError("Informe o nome do estabelecimento");
@@ -176,6 +206,42 @@ export async function resetarDemo(ctx: Ctx): Promise<void> {
     await c.query("delete from pedidos");
     await c.query("delete from comandas");
     await c.query("delete from caixas");
-    await c.query("alter sequence pedido_numero_seq restart with 101");
+    await c.query("update estabelecimento set proximo_pedido = 101");
   });
+}
+
+// ------------------------------------------------------------------ assinatura
+export interface Assinatura {
+  plano: string;
+  planoNome: string;
+  precoMensal: number;
+  status: string;
+  liberado: boolean;
+  diasRestantes: number | null;
+  motivo?: string;
+  pagoAte?: string;
+  trialAte?: string;
+  pixChave?: string;
+  whatsapp?: string;
+}
+
+/** situação da assinatura do negócio (funciona mesmo com o sistema bloqueado) */
+export async function getAssinatura(ctx: Ctx): Promise<Assinatura> {
+  exigirEquipe(ctx);
+  const t = exigirTenant(ctx);
+  const s = situacao(t);
+  const p = planoDe(t.plano);
+  return {
+    plano: p.id,
+    planoNome: p.nome,
+    precoMensal: p.precoMensal,
+    status: s.status,
+    liberado: s.liberado,
+    diasRestantes: s.diasRestantes,
+    motivo: s.motivo,
+    pagoAte: t.pagoAte ?? undefined,
+    trialAte: t.trialAte ?? undefined,
+    pixChave: process.env.PLATAFORMA_PIX_CHAVE || undefined,
+    whatsapp: process.env.PLATAFORMA_WHATSAPP || undefined,
+  };
 }

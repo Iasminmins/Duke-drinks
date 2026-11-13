@@ -1,8 +1,9 @@
 "use client";
 
-import { LayoutDashboard, QrCode, Settings, Soup, Users, Warehouse } from "lucide-react";
+import { CreditCard, LayoutDashboard, QrCode, Settings, Soup, Users, Warehouse } from "lucide-react";
 import { RoleGuard } from "@/components/layout/role-guard";
 import { PainelShell, type ItemNav } from "@/components/layout/painel-shell";
+import { AvisoAssinatura } from "@/components/layout/aviso-assinatura";
 
 const NAV: ItemNav[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exato: true },
@@ -20,6 +21,7 @@ const NAV: ItemNav[] = [
   { href: "/admin/mesas", label: "Mesas", icon: QrCode },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
+  { href: "/assinatura", label: "Assinatura", icon: CreditCard },
 ];
 
 const MIGALHAS = {
@@ -36,7 +38,7 @@ const MIGALHAS = {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <RoleGuard papeis={["admin"]}>
-      <PainelShell nav={NAV} titulo="Admin" migalhas={MIGALHAS}>
+      <PainelShell nav={NAV} titulo="Admin" migalhas={MIGALHAS} extraHeader={<AvisoAssinatura />}>
         {children}
       </PainelShell>
     </RoleGuard>

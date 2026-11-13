@@ -10,7 +10,6 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { SkeletonLista } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Logo } from "@/components/brand/logo";
 import { getEstabelecimento, resetarDemo, salvarEstabelecimento } from "@/services/config.service";
 import { mensagemErro } from "@/lib/errors";
 import type { Estabelecimento } from "@/types";
@@ -18,7 +17,7 @@ import type { Estabelecimento } from "@/types";
 const schema = z.object({
   nome: z.string().trim().min(2, "Informe o nome"),
   taxaServicoPadrao: z.number().min(0, "Mínimo 0%").max(20, "Máximo 20%"),
-  horarioFuncionamento: z.string().trim().min(3, "Informe o horário"),
+  horarioFuncionamento: z.string().trim().max(60, "Máximo 60 caracteres"),
   mensagemTopo: z.string().trim().max(80, "Máximo 80 caracteres"),
   endereco: z.string().trim(),
 });
@@ -33,8 +32,12 @@ export default function ConfiguracoesPage() {
   }, [q.data, f]);
 
   const salvar = useMutation({
-    mutationFn: () => salvarEstabelecimento(f!),
-    onSuccess: () => toast.success("Configurações salvas"),
+    mutationFn: () => salvarEstabelecimento({ ...f!, logoUrl: f!.logoUrl ?? null } as Estabelecimento),
+    onSuccess: () => {
+      toast.success("Configurações salvas");
+      // logo e cor vêm do servidor no carregamento da página
+      setTimeout(() => window.location.reload(), 600);
+    },
     onError: (e) => toast.error(mensagemErro(e)),
   });
   const resetM = useMutation({
@@ -85,9 +88,52 @@ export default function ConfiguracoesPage() {
           <Field label="Endereço" htmlFor="e-end" className="sm:col-span-2">
             <Textarea id="e-end" value={f.endereco} onChange={(e) => set({ endereco: e.target.value })} />
           </Field>
-          <Field label="Logo" htmlFor="e-logo" className="sm:col-span-2" dica="Coloque o arquivo em /public/brand e aponte em src/lib/brand.ts (o upload real entra com o back-end).">
-            <div className="flex items-center gap-4 rounded-card border border-dashed border-line p-4">
-              <Logo />
+          <Field label="Logo" htmlFor="e-logo" className="sm:col-span-2" dica="PNG, JPG, WEBP ou SVG de até 1 MB. De preferência com fundo transparente.">
+            <div className="flex flex-wrap items-center gap-4 rounded-card border border-dashed border-line p-4">
+              {f.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={f.logoUrl} alt="Logo" className="h-14 w-auto max-w-[180px] object-contain" />
+              ) : (
+                <span className="text-sm text-muted">Sem logo: o nome aparece no lugar.</span>
+              )}
+              <label className="ml-auto inline-flex h-10 cursor-pointer items-center rounded-[10px] border border-line px-3 text-sm hover:border-gold/50">
+                Escolher imagem
+                <input
+                  id="e-logo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const arq = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!arq) return;
+                    if (arq.size > 1_000_000) {
+                      toast.error("Imagem maior que 1 MB. Reduza e tente de novo.");
+                      return;
+                    }
+                    const leitor = new FileReader();
+                    leitor.onload = () => set({ logoUrl: String(leitor.result) });
+                    leitor.readAsDataURL(arq);
+                  }}
+                />
+              </label>
+              {f.logoUrl && (
+                <Button type="button" variant="secondary" onClick={() => set({ logoUrl: undefined })}>
+                  Remover
+                </Button>
+              )}
+            </div>
+          </Field>
+          <Field label="Cor da marca" htmlFor="e-cor" dica="Usada em botões, destaques e no cardápio do cliente.">
+            <div className="flex items-center gap-3">
+              <input
+                id="e-cor"
+                type="color"
+                value={f.corPrimaria ?? "#f5b800"}
+                onChange={(e) => set({ corPrimaria: e.target.value })}
+                className="h-10 w-14 cursor-pointer rounded-[10px] border border-line bg-transparent"
+              />
+              <span className="font-mono text-sm text-muted">{f.corPrimaria ?? "#f5b800"}</span>
             </div>
           </Field>
           <div className="flex justify-end sm:col-span-2">

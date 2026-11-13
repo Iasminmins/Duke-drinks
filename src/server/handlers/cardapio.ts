@@ -129,7 +129,7 @@ export async function excluirCategoria(ctx: Ctx, id: string): Promise<void> {
     throw new ServiceError("Mova ou desative os produtos desta categoria antes de excluir", "CONFLITO");
   }
   try {
-    await query(`delete from categorias where id = $1`, [id]);
+    await tx((c) => c.query(`delete from categorias where id = $1`, [id]));
   } catch (e) {
     // ainda há produtos desativados (histórico) apontando para ela: apenas desativa
     if ((e as { code?: string })?.code === "23503") await query(`update categorias set ativa = false where id = $1`, [id]);

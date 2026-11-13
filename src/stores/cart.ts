@@ -55,7 +55,7 @@ export const useCart = create<CartState>()(
       limpar: () => set({ itens: [] }),
     }),
     {
-      name: "duke:carrinho",
+      name: "carrinho",
       storage: createJSONStorage(() => sessionStorage),
       partialize: (s) => ({ dono: s.dono, itens: s.itens }),
     },

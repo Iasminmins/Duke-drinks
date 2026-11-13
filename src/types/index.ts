@@ -18,6 +18,8 @@ export interface Estabelecimento {
   horarioFuncionamento: string;
   mensagemTopo: string;
   endereco: string;
+  /** cor de destaque da marca (#RRGGBB) */
+  corPrimaria?: string;
 }
 
 export interface Usuario {

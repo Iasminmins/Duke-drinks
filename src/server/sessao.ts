@@ -2,12 +2,17 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Papel } from "@/types";
 
-export const COOKIE = "duke_sessao";
+/** cookie da equipe de um negócio (cada subdomínio tem o seu) */
+export const COOKIE = "sessao";
+/** cookie do dono da plataforma (você), só no domínio principal */
+export const COOKIE_PLATAFORMA = "sessao_plataforma";
 export const DURACAO_MS = 12 * 3600 * 1000; // um expediente
 
 export interface Sessao {
   uid: string;
-  papel: Papel;
+  papel: Papel | "plataforma";
+  /** estabelecimento a que a sessão pertence; a sessão não vale em outro subdomínio */
+  eid: string;
   exp: number;
 }
 
@@ -35,8 +40,17 @@ export function lerToken(token?: string): Sessao | null {
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
     const s = JSON.parse(Buffer.from(corpo, "base64url").toString()) as Sessao;
-    return s.exp > Date.now() ? s : null;
+    return s.exp > Date.now() && typeof s.eid === "string" ? s : null;
   } catch {
     return null;
   }
+}
+
+/** compara a senha da plataforma (PLATAFORMA_SENHA) em tempo constante */
+export function senhaPlataformaConfere(senha: string): boolean {
+  const certa = process.env.PLATAFORMA_SENHA ?? "";
+  if (certa.length < 12) return false; // sem senha forte configurada, o painel fica fechado
+  const a = createHmac("sha256", "cmp").update(senha).digest();
+  const b = createHmac("sha256", "cmp").update(certa).digest();
+  return timingSafeEqual(a, b);
 }

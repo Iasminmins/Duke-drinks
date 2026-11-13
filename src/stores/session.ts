@@ -33,6 +33,6 @@ export const useSession = create<SessionState>()(
         set({ usuario: null, expiraEm: null });
       },
     }),
-    { name: "duke:sessao" },
+    { name: "sessao" },
   ),
 );

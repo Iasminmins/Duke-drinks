@@ -3,7 +3,7 @@ import { normalizarCelular } from "@/lib/celular";
 import { ServiceError } from "@/services/_base";
 import type { ComandaPublica } from "@/services/mesas.service";
 import type { Comanda, ComandaDetalhada, Mesa } from "@/types";
-import { pool, query, um } from "../db";
+import { pool, query, tx, um } from "../db";
 import { bloqueado, limpar, registrarFalha } from "../limite";
 import { COMANDA_SQL, detalhar, erroAmigavel, exigir, type Ctx } from "../comum";
 
@@ -75,10 +75,14 @@ export async function abrirComanda(
       )?.n;
     if (!numero) throw new ServiceError("Sem números de comanda livres", "CONFLITO");
     try {
-      const r = await um<{ id: string }>(
-        `insert into comandas (mesa_id, numero, token, aberta_por, cliente_nome, cliente_celular)
-         values ($1, $2, encode(gen_random_bytes(12), 'hex'), $3, $4, $5) returning id`,
-        [mesaId, numero, sessao.uid, nome, celular],
+      // savepoint: se o número já foi pego, desfaz só este insert e tenta o próximo
+      const r = await tx((c) =>
+        um<{ id: string }>(
+          `insert into comandas (mesa_id, numero, token, aberta_por, cliente_nome, cliente_celular)
+           values ($1, $2, encode(gen_random_bytes(12), 'hex'), $3, $4, $5) returning id`,
+          [mesaId, numero, sessao.uid, nome, celular],
+          c,
+        ),
       );
       return (await um<Comanda>(`${COMANDA_SQL} where c.id = $1`, [r!.id]))!;
     } catch (e) {

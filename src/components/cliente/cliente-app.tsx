@@ -147,7 +147,9 @@ export function ClienteApp({ token }: { token: string }) {
             {status === "fechada" ? "Conta paga. Valeu!" : "Comanda cancelada"}
           </h1>
           <p className="mt-3 text-sm text-muted">
-            {status === "fechada" ? "Volte sempre ao Duke." : "Se isso foi um engano, fale com a equipe."}
+            {status === "fechada"
+              ? `Volte sempre${estQ.data?.nome ? ` ao ${estQ.data.nome.split(/\s*[|·–-]\s*/)[0]}` : ""}.`
+              : "Se isso foi um engano, fale com a equipe."}
           </p>
         </div>
       </Moldura>
@@ -199,10 +201,12 @@ export function ClienteApp({ token }: { token: string }) {
           <div className="px-4 pb-4 pt-5">
             <div className="flex items-center gap-2 text-gold">
               <Coroa className="h-3 w-5" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.25em]">Powered by Brahma</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.25em]">
+                {estQ.data?.horarioFuncionamento || "Cardápio"}
+              </span>
             </div>
             <p className="mt-1.5 font-display text-[28px] leading-[1.05] text-cream">
-              {estQ.data?.mensagemTopo ?? "Boa cerveja, bons amigos e sempre Duke!"}
+              {estQ.data?.mensagemTopo || "Escolha, peça e acompanhe por aqui."}
             </p>
           </div>
 

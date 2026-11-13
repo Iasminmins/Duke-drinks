@@ -7,6 +7,7 @@ import * as comandas from "./handlers/comandas";
 import * as pedidos from "./handlers/pedidos";
 import * as caixa from "./handlers/caixa";
 import * as relatorios from "./handlers/relatorios";
+import * as plataforma from "./handlers/plataforma";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type H = (ctx: Ctx, ...args: any[]) => Promise<unknown>;
@@ -74,4 +75,20 @@ export const REGISTRO: Record<string, H> = {
   fecharCaixa: caixa.fecharCaixa,
   // relatórios
   getResumoDashboard: relatorios.getResumoDashboard,
+  // assinatura do negócio
+  getAssinatura: acesso.getAssinatura,
+};
+
+/** com a assinatura vencida/suspensa, só isto funciona (entrar e ver como regularizar) */
+export const LIBERADAS_SEM_ASSINATURA = new Set(["login", "logout", "sessaoAtual", "getEstabelecimento", "getAssinatura"]);
+
+/** operações do domínio principal (site do produto + painel da plataforma) */
+export const REGISTRO_PLATAFORMA: Record<string, H> = {
+  verificarSlug: plataforma.verificarSlug,
+  cadastrarNegocio: plataforma.cadastrarNegocio,
+  plataformaEntrar: plataforma.plataformaEntrar,
+  plataformaSair: plataforma.plataformaSair,
+  plataformaSessao: plataforma.plataformaSessao,
+  plataformaListar: plataforma.plataformaListar,
+  plataformaAtualizar: plataforma.plataformaAtualizar,
 };
