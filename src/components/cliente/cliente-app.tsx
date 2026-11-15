@@ -7,6 +7,7 @@ import { ArrowLeft, BellRing, ClipboardList, Minus, Plus, Receipt, ShoppingBag, 
 import { Logo } from "@/components/brand/logo";
 import { Coroa } from "@/components/brand/coroa";
 import { Mascote } from "@/components/brand/mascote";
+import { useTema } from "@/components/brand/temas";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
@@ -42,6 +43,7 @@ export function ClienteApp({ token }: { token: string }) {
   const entradaQ = useQuery({ queryKey: ["entrada-qr", token], queryFn: () => entrarPorQr(token), retry: false });
   const cardapioQ = useQuery({ queryKey: ["cardapio"], queryFn: getCardapio });
   const estQ = useQuery({ queryKey: ["estabelecimento"], queryFn: getEstabelecimento });
+  const tema = useTema();
   const comandaId = entradaQ.data?.id ?? null;
   const comandaQ = useQuery({
     queryKey: ["comanda", comandaId],
@@ -202,7 +204,7 @@ export function ClienteApp({ token }: { token: string }) {
             <div className="flex items-center gap-2 text-gold">
               <Coroa className="h-3 w-5" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.25em]">
-                {estQ.data?.horarioFuncionamento || "Cardápio"}
+                {tema?.selo || estQ.data?.horarioFuncionamento || "Cardápio"}
               </span>
             </div>
             <p className="mt-1.5 font-display text-[28px] leading-[1.05] text-cream">

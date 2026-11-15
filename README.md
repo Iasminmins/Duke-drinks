@@ -1,4 +1,4 @@
-# Comanda Digital — SaaS de pedidos para bares, restaurantes e lanchonetes
+# Comandou — SaaS de pedidos para bares, restaurantes e lanchonetes
 
 Cardápio digital via QR code, pedidos direto na produção (cozinha/bar/chapa), garçom e caixa.
 Multi-tenant: cada negócio tem o próprio endereço (`duke.seudominio.com.br`) e só enxerga os próprios dados.
@@ -20,6 +20,9 @@ a regra de negócio, a autorização e o acesso ao banco ficam todos no servidor
   suspenso → a API responde 402 e a equipe cai em `/assinatura`. 5 dias de tolerância após `pago_ate`.
 - **Planos e tipos de negócio** ficam em `src/lib/planos.ts` (preços, limite de usuários, categorias e
   setores iniciais por tipo).
+- **Temas personalizados** (`src/components/brand/temas.tsx`): identidade feita sob medida ligada ao slug
+  do cliente. O Duke usa o tema dele (coroa, "DRINKS & CHOPERIA", mascote, "Powered by Brahma"); os
+  demais usam o visual padrão com nome, logo enviado e cor da marca.
 - **Painel da plataforma** (`/plataforma` no domínio principal): lista os negócios, uso, receita mensal,
   e o botão "recebi o pagamento: liberar +1 mês".
 
@@ -38,7 +41,7 @@ DEFAULT_TENANT_SLUG=                     # opcional: negócio usado em endereço
 PLATAFORMA_SENHA=<senha forte, 12+>      # entra no /plataforma
 PLATAFORMA_PIX_CHAVE=                    # aparece na tela de assinatura
 PLATAFORMA_WHATSAPP=5524999999999        # botão de WhatsApp da tela de assinatura
-NEXT_PUBLIC_PRODUTO_NOME=Comanda Digital # nome do produto
+NEXT_PUBLIC_PRODUTO_NOME=Comandou        # nome do produto (padrão: Comandou)
 ALLOW_DEMO_RESET=false                   # true permite o admin APAGAR o movimento do próprio negócio
 ```
 

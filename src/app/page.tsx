@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { BellRing, Check, ChefHat, CircleDollarSign, QrCode, Smartphone, Users } from "lucide-react";
+import { ArrowRight, BellRing, Check, ChefHat, CircleDollarSign, QrCode, Smartphone, Users } from "lucide-react";
 import { Coroa } from "@/components/brand/coroa";
+import { LogoDuke } from "@/components/brand/temas";
+import { urlDoTenant } from "@/lib/host";
 import { PLANOS, PRODUTO, TIPOS_NEGOCIO } from "@/lib/planos";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -68,6 +70,29 @@ export default function SiteDoProduto() {
               <p className="mt-2 text-muted">{d}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pt-16">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold">Quem já usa o {PRODUTO.nome}</p>
+        <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,420px)_1fr] md:items-center">
+          <a
+            href={urlDoTenant("duke")}
+            className="group flex items-center gap-5 rounded-card border-2 border-[#c8102e] bg-[radial-gradient(circle_at_20%_20%,#2a0a10,#0f0f10_70%)] p-6 transition-colors hover:border-[#f5b800]"
+          >
+            <LogoDuke />
+            <div className="min-w-0">
+              <p className="font-semibold text-[#f5ecd7]">Duke | Drinks e Choperia</p>
+              <p className="text-sm text-[#a8a196]">Shopping Belvedere · Volta Redonda</p>
+              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#f5b800]">
+                Acessar o sistema do Duke <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </div>
+          </a>
+          <p className="max-w-md text-muted">
+            Choperia com cardápio por QR em cada comanda, pedidos indo direto para cozinha e bar, e o caixa fechando o
+            expediente pelo sistema. Com a identidade visual do próprio Duke.
+          </p>
         </div>
       </section>
 

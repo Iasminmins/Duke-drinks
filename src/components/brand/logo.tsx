@@ -4,14 +4,17 @@ import { PRODUTO } from "@/lib/planos";
 import { cn } from "@/lib/utils";
 import { Coroa } from "./coroa";
 import { useMarca } from "./marca";
+import { useTema } from "./temas";
 
 /** logo do negócio (imagem enviada no admin) ou o nome dele; no site do produto, o nome do produto */
 export function Logo({ className, compacto }: { className?: string; compacto?: boolean }) {
   const marca = useMarca();
+  const tema = useTema();
   const nome = marca?.nome ?? PRODUTO.nome;
   if (marca?.logoUrl) {
     return <img src={marca.logoUrl} alt={nome} className={cn(compacto ? "h-8" : "h-12", "w-auto max-w-[180px] object-contain", className)} />;
   }
+  if (tema) return <tema.Logo className={className} compacto={compacto} />;
   // nome curto em destaque (antes do "|" ou "-"), resto como subtítulo
   const [principal, ...resto] = nome.split(/\s*[|·–-]\s*/);
   const sub = resto.join(" · ");

@@ -3,7 +3,7 @@
  * Os preços são uma sugestão inicial: ajuste à vontade.
  */
 export const PRODUTO = {
-  nome: process.env.NEXT_PUBLIC_PRODUTO_NOME || "Comanda Digital",
+  nome: process.env.NEXT_PUBLIC_PRODUTO_NOME || "Comandou",
   slogan: "Cardápio por QR, pedidos direto na cozinha e caixa no mesmo sistema.",
   diasTeste: 14,
 };

@@ -3,6 +3,7 @@
 import { Beer, Coffee, Pizza, Sandwich, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMarca } from "./marca";
+import { useTema } from "./temas";
 
 const ICONE: Record<string, typeof Beer> = {
   bar: Beer,
@@ -15,6 +16,8 @@ const ICONE: Record<string, typeof Beer> = {
 /** ilustração dos estados vazios: logo do negócio, ou um ícone que combina com o tipo dele */
 export function Mascote({ className }: { className?: string }) {
   const marca = useMarca();
+  const tema = useTema();
+  if (tema) return <tema.Mascote className={className} />;
   if (marca?.logoUrl) return <img src={marca.logoUrl} alt="" className={cn("object-contain", className)} />;
   const Icone = ICONE[marca?.tipo ?? ""] ?? UtensilsCrossed;
   return (
