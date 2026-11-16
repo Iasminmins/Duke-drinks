@@ -26,33 +26,50 @@ export default function SiteDoProduto() {
         <MarcaComandou />
         <nav className="flex items-center gap-4 text-sm">
           <a href="#planos" className="hidden text-muted hover:text-cream sm:inline">Planos</a>
+          <Link href="/login" className="font-semibold text-cream hover:text-gold">Entrar</Link>
           <Link href="/cadastro" className="rounded-[10px] bg-gold px-4 py-2 font-semibold text-bg hover:bg-gold-600">
             Testar grátis
           </Link>
         </nav>
       </header>
 
-      <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:pt-20">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold">Para bares, restaurantes e lanchonetes</p>
-        <h1 className="mt-4 max-w-3xl font-display text-5xl leading-[0.95] sm:text-7xl">
-          O cliente pede pelo celular. A cozinha recebe na hora. O caixa fecha certinho.
-        </h1>
-        <p className="mt-6 max-w-xl text-lg text-muted">{PRODUTO.slogan} Pronto para usar hoje, sem instalar nada.</p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/cadastro" className="inline-flex h-14 items-center rounded-[10px] bg-gold px-6 text-base font-semibold text-bg hover:bg-gold-600">
-            Começar {PRODUTO.diasTeste} dias grátis
-          </Link>
-          <a href="#como-funciona" className="inline-flex h-14 items-center rounded-[10px] border border-line px-6 text-base hover:border-gold/50">
-            Ver como funciona
-          </a>
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-10 sm:pt-20 lg:grid-cols-2 lg:gap-16">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold">Para bares, restaurantes e lanchonetes</p>
+          <h1 className="mt-4 max-w-3xl font-display text-5xl leading-[0.95] sm:text-7xl">
+            O cliente pede pelo celular. A cozinha recebe na hora. O caixa fecha certinho.
+          </h1>
+          <p className="mt-6 max-w-xl text-lg text-muted">{PRODUTO.slogan} Pronto para usar hoje, sem instalar nada.</p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link href="/cadastro" className="inline-flex h-14 items-center rounded-[10px] bg-gold px-6 text-base font-semibold text-bg hover:bg-gold-600">
+              Começar {PRODUTO.diasTeste} dias grátis
+            </Link>
+            <a href="#como-funciona" className="inline-flex h-14 items-center rounded-[10px] border border-line px-6 text-base hover:border-gold/50">
+              Ver como funciona
+            </a>
+          </div>
+          <p className="mt-4 text-sm text-subtle">Sem cartão de crédito. Cancele quando quiser.</p>
+          <div className="mt-10 flex flex-wrap gap-2">
+            {TIPOS_NEGOCIO.filter((t) => t.id !== "outro").map((t) => (
+              <span key={t.id} className="rounded-full border border-line bg-surface px-3 py-1 text-sm text-muted">
+                {t.label}
+              </span>
+            ))}
+          </div>
         </div>
-        <p className="mt-4 text-sm text-subtle">Sem cartão de crédito. Cancele quando quiser.</p>
-        <div className="mt-10 flex flex-wrap gap-2">
-          {TIPOS_NEGOCIO.filter((t) => t.id !== "outro").map((t) => (
-            <span key={t.id} className="rounded-full border border-line bg-surface px-3 py-1 text-sm text-muted">
-              {t.label}
-            </span>
-          ))}
+        <div className="hero-comandou-visual flex items-center justify-center">
+          <div className="hero-comandou-visual-float w-full max-w-[460px]">
+            <img
+              src="/hero-comandou.webp"
+              alt="Celular mostrando o cardápio do Comandou, com o pedido confirmado e a comanda chegando na tela da cozinha"
+              width={1254}
+              height={1254}
+              className="h-auto w-full"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+            />
+          </div>
         </div>
       </section>
 

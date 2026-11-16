@@ -146,3 +146,22 @@
   letter-spacing: -0.025em;
 }
 .tema-comandou ::selection { background: #ffe066; color: #15171c; }
+
+/* hero da pagina do produto: imagem do celular com glow azul e entrada suave */
+.hero-comandou-visual { position: relative; }
+.hero-comandou-visual::before {
+  content: "";
+  position: absolute; inset: -8%;
+  background: radial-gradient(ellipse 60% 55% at 50% 48%, rgba(35, 64, 217, .22), rgba(35, 64, 217, .09) 42%, rgba(35, 64, 217, 0) 72%);
+  z-index: 0;
+}
+.hero-comandou-visual-float { position: relative; z-index: 1; animation: heroComandouFloat 6.5s ease-in-out 1.05s infinite; }
+.hero-comandou-visual-float img {
+  opacity: 0; transform: translateY(26px);
+  animation: heroComandouEntra .9s cubic-bezier(.16,1,.3,1) .12s forwards;
+}
+@keyframes heroComandouEntra { to { opacity: 1; transform: translateY(0); } }
+@keyframes heroComandouFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+@media (prefers-reduced-motion: reduce) {
+  .hero-comandou-visual-float, .hero-comandou-visual-float img { opacity: 1 !important; transform: none !important; }
+}
