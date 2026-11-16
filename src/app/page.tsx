@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, BellRing, Check, ChefHat, CircleDollarSign, QrCode, Smartphone, Users } from "lucide-react";
-import { Coroa } from "@/components/brand/coroa";
 import { LogoDuke } from "@/components/brand/temas";
+import { MarcaComandou, FontesComandou } from "@/components/brand/comandou";
 import { urlDoTenant } from "@/lib/host";
 import { PLANOS, PRODUTO, TIPOS_NEGOCIO } from "@/lib/planos";
 import { formatBRL } from "@/lib/format";
@@ -20,11 +20,10 @@ const RECURSOS = [
 
 export default function SiteDoProduto() {
   return (
-    <main className="bg-pub min-h-dvh">
+    <main className="tema-comandou min-h-dvh">
+      <FontesComandou />
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5">
-        <span className="flex items-center gap-2 font-display text-2xl">
-          <Coroa className="h-4 w-6 text-gold" /> {PRODUTO.nome}
-        </span>
+        <MarcaComandou />
         <nav className="flex items-center gap-4 text-sm">
           <a href="#planos" className="hidden text-muted hover:text-cream sm:inline">Planos</a>
           <Link href="/cadastro" className="rounded-[10px] bg-gold px-4 py-2 font-semibold text-bg hover:bg-gold-600">
