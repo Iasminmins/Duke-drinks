@@ -6,6 +6,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/input";
 import { formatarCelular, mascaraCelular } from "@/lib/format";
 import type { Mesa } from "@/types";
+import type { Cartao } from "@/services/mesas.service";
 
 export interface OpcoesComanda {
   mesaId?: string;
@@ -22,6 +23,7 @@ export function ClienteDialog({
   confirmar,
   loading,
   mesas,
+  cartoes,
   onSalvar,
 }: {
   open: boolean;
@@ -33,6 +35,8 @@ export function ClienteDialog({
   loading?: boolean;
   /** quando informado (abrir comanda), mostra os campos opcionais de mesa e nº do cartão */
   mesas?: Mesa[];
+  /** cartões de comanda cadastrados no admin; com eles, o número é escolhido entre os livres */
+  cartoes?: Cartao[];
   onSalvar: (nome: string, celular: string, opcoes: OpcoesComanda) => void;
 }) {
   const [nome, setNome] = useState("");
@@ -41,6 +45,8 @@ export function ClienteDialog({
   const [numero, setNumero] = useState("");
   const pronto = nome.trim().length >= 2 && celular.replace(/\D/g, "").length >= 10;
   const abrindo = !!mesas;
+  const livres = (cartoes ?? []).filter((c) => !c.emUso);
+  const usaCartoes = (cartoes ?? []).length > 0;
 
   useEffect(() => {
     if (open) {
@@ -90,16 +96,33 @@ export function ClienteDialog({
         </Field>
         {abrindo && (
           <>
-            <Field label="Nº do cartão (opcional)" htmlFor="cmd-num" dica="Deixe vazio para usar o próximo número livre.">
-              <Input
-                id="cmd-num"
-                inputMode="numeric"
-                autoComplete="off"
-                value={numero}
-                onChange={(e) => setNumero(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                placeholder="ex.: 27"
-              />
-            </Field>
+            {usaCartoes ? (
+              <Field
+                label="Nº da comanda"
+                htmlFor="cmd-num"
+                dica={livres.length ? `${livres.length} livres agora.` : "Todas as comandas estão em uso. Cadastre mais no admin."}
+              >
+                <Select id="cmd-num" value={numero} onChange={(e) => setNumero(e.target.value)} disabled={!livres.length}>
+                  <option value="">{livres.length ? `Próxima livre (${livres[0].numero})` : "Nenhuma livre"}</option>
+                  {livres.map((c) => (
+                    <option key={c.numero} value={c.numero}>
+                      Comanda {c.numero}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : (
+              <Field label="Nº do cartão (opcional)" htmlFor="cmd-num" dica="Deixe vazio para usar o próximo número livre.">
+                <Input
+                  id="cmd-num"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="ex.: 27"
+                />
+              </Field>
+            )}
             {mesas.length > 0 && (
               <Field label="Mesa (opcional)" htmlFor="cmd-mesa" dica="Só se a pessoa for ficar numa mesa. O pedido é sempre da comanda.">
                 <Select id="cmd-mesa" value={mesaId} onChange={(e) => setMesaId(e.target.value)}>

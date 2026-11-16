@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, LayoutDashboard, QrCode, Settings, Soup, Users, Warehouse } from "lucide-react";
+import { CreditCard, LayoutDashboard, QrCode, Settings, Soup, Ticket, Users, Warehouse } from "lucide-react";
 import { RoleGuard } from "@/components/layout/role-guard";
 import { PainelShell, type ItemNav } from "@/components/layout/painel-shell";
 import { AvisoAssinatura } from "@/components/layout/aviso-assinatura";
@@ -18,6 +18,7 @@ const NAV: ItemNav[] = [
     ],
   },
   { href: "/admin/setores", label: "Setores", icon: Warehouse },
+  { href: "/admin/comandas", label: "Comandas", icon: Ticket },
   { href: "/admin/mesas", label: "Mesas", icon: QrCode },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
@@ -30,6 +31,7 @@ const MIGALHAS = {
   "/admin/categorias": "Categorias",
   "/admin/adicionais": "Adicionais",
   "/admin/setores": "Setores",
+  "/admin/comandas": "Comandas",
   "/admin/mesas": "Mesas",
   "/admin/usuarios": "Usuários",
   "/admin/configuracoes": "Configurações",

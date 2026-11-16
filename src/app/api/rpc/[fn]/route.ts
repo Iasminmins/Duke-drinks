@@ -73,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fn:
       // sessão da equipe: cookie assinado, do MESMO negócio, e usuário ainda existe e está ativo
       let sessao: Ctx["sessao"] = null;
       const token = tenant ? lerToken(req.cookies.get(COOKIE)?.value) : null;
-      if (token && tenant && token.eid === tenant.id && token.papel !== "plataforma") {
+      if (token && tenant && token.eid === tenant.id && token.papel !== "plataforma" && !token.tipo) {
         const u = await um<{ papel: Usuario["papel"]; ativo: boolean }>(`select papel, ativo from usuarios where id = $1`, [token.uid]);
         if (u?.ativo) sessao = { uid: token.uid, papel: u.papel };
       }

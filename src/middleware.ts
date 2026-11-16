@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { resolverHost, urlDaPlataforma } from "@/lib/host";
 
 /** telas que existem no site do produto (domínio principal) */
-const PAGINAS_PLATAFORMA = ["/", "/cadastro", "/plataforma", "/termos", "/privacidade", "/offline"];
+const PAGINAS_PLATAFORMA = ["/", "/cadastro", "/acessar", "/plataforma", "/termos", "/privacidade", "/offline"];
 /** telas que só fazem sentido no site do produto */
-const SO_PLATAFORMA = ["/cadastro", "/plataforma"];
+const SO_PLATAFORMA = ["/cadastro", "/acessar", "/plataforma"];
 
 const comeca = (path: string, lista: string[]) => lista.some((p) => path === p || (p !== "/" && path.startsWith(p + "/")));
 

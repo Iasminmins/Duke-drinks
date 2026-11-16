@@ -5,6 +5,7 @@ import { query, tx, um } from "../db";
 import { bloqueado, limpar, registrarFalha } from "../limite";
 import { exigir, exigirEquipe, exigirTenant, erroAmigavel, type Ctx } from "../comum";
 import { situacao } from "../tenant";
+import { lerToken } from "../sessao";
 import { plano as planoDe, PLANOS } from "@/lib/planos";
 
 const PAPEIS: Papel[] = ["admin", "caixa", "garcom", "cozinha", "bar"];
@@ -27,6 +28,22 @@ export async function login(ctx: Ctx, usuario: unknown, senha: unknown): Promise
   }
   if (!u.ativo) throw new ServiceError("Este acesso está desativado. Fale com o administrador.", "PROIBIDO");
   limpar(chave);
+  ctx.iniciarSessao(u);
+  return u;
+}
+
+/**
+ * Entrada direta logo após o cadastro: troca o link curto (10 min) por uma sessão normal.
+ * O link só vale no endereço do próprio negócio e para um usuário que ainda existe e está ativo.
+ */
+export async function entrarComToken(ctx: Ctx, t: unknown): Promise<Usuario> {
+  const tenant = exigirTenant(ctx);
+  const s = lerToken(String(t ?? ""));
+  if (!s || s.tipo !== "entrada" || s.eid !== tenant.id) {
+    throw new ServiceError("Este link de acesso expirou. Entre com o usuário e a senha que você criou.", "PROIBIDO");
+  }
+  const u = await um<Usuario>(`${USUARIO_SQL} where id = $1`, [s.uid]);
+  if (!u?.ativo) throw new ServiceError("Este acesso está desativado. Fale com o administrador.", "PROIBIDO");
   ctx.iniciarSessao(u);
   return u;
 }
@@ -208,6 +225,25 @@ export async function resetarDemo(ctx: Ctx): Promise<void> {
     await c.query("delete from caixas");
     await c.query("update estabelecimento set proximo_pedido = 101");
   });
+}
+
+// ------------------------------------------------------------------ primeiros passos (painel do admin)
+export interface PrimeirosPassos {
+  produtos: number;
+  usuarios: number;
+  temLogo: boolean;
+  pedidos: number;
+}
+
+export async function getPrimeirosPassos(ctx: Ctx): Promise<PrimeirosPassos> {
+  exigir(ctx, "admin");
+  const r = await um<PrimeirosPassos>(
+    `select (select count(*)::int from produtos where ativo) as produtos,
+            (select count(*)::int from usuarios where ativo) as usuarios,
+            coalesce((select logo_url is not null from estabelecimento limit 1), false) as "temLogo",
+            (select count(*)::int from pedidos) as pedidos`,
+  );
+  return r ?? { produtos: 0, usuarios: 0, temLogo: false, pedidos: 0 };
 }
 
 // ------------------------------------------------------------------ assinatura

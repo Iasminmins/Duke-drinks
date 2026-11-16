@@ -57,6 +57,11 @@ npm run dev
 - `db/schema.sql`: esquema original (single-tenant).
 - `db/migrations/001_multitenant.sql`: transforma em multi-tenant. Aplicar uma vez:
   `node db/migrar.mjs db/migrations/001_multitenant.sql`
+- `db/migrations/002_cartoes.sql`: cartões de comanda numerados (Admin → Comandas). Aplicar depois da 001:
+  `node db/migrar.mjs db/migrations/002_cartoes.sql`
+
+> Atenção: `migrar.mjs` usa o `DATABASE_URL` do ambiente ou, se não houver, o do `.env.local` (produção).
+> Para o banco de teste, defina `DATABASE_URL` com a URL do `.env.teste.local` antes de rodar.
 
 ### Deploy (Vercel)
 

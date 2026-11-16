@@ -1,12 +1,27 @@
-import type { Assinatura } from "@/server/handlers/acesso";
-import type { NegocioResumo, NovoNegocio } from "@/server/handlers/plataforma";
+import type { Assinatura, PrimeirosPassos } from "@/server/handlers/acesso";
+import type { ContaAcesso, NegocioResumo, NovoNegocio } from "@/server/handlers/plataforma";
+import type { Usuario } from "@/types";
 import { rpc } from "./_rpc";
 
-export type { Assinatura, NegocioResumo, NovoNegocio };
+export type { Assinatura, ContaAcesso, NegocioResumo, NovoNegocio, PrimeirosPassos };
+
+/** login único do site: e-mail + senha do dono -> negócios dele (com link que já entra) */
+export function acessarConta(email: string, senha: string): Promise<ContaAcesso[]> {
+  return rpc("acessarConta", email, senha);
+}
 
 // ---------------------------------------------------------------- negócio (subdomínio)
 export function getAssinatura(): Promise<Assinatura> {
   return rpc("getAssinatura");
+}
+
+/** troca o link de entrada do cadastro por uma sessão do admin */
+export function entrarComToken(t: string): Promise<Usuario> {
+  return rpc("entrarComToken", t);
+}
+
+export function getPrimeirosPassos(): Promise<PrimeirosPassos> {
+  return rpc("getPrimeirosPassos");
 }
 
 // ---------------------------------------------------------------- site do produto (domínio principal)
@@ -14,7 +29,7 @@ export function verificarSlug(slug: string): Promise<{ slug: string; disponivel:
   return rpc("verificarSlug", slug);
 }
 
-export function cadastrarNegocio(dados: NovoNegocio): Promise<{ slug: string; url: string }> {
+export function cadastrarNegocio(dados: NovoNegocio): Promise<{ slug: string; url: string; entrada: string }> {
   return rpc("cadastrarNegocio", dados);
 }
 

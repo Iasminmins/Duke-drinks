@@ -19,6 +19,7 @@ type H = (ctx: Ctx, ...args: any[]) => Promise<unknown>;
 export const REGISTRO: Record<string, H> = {
   // acesso
   login: acesso.login,
+  entrarComToken: acesso.entrarComToken,
   logout: acesso.logout,
   sessaoAtual: acesso.sessaoAtual,
   listarUsuarios: acesso.listarUsuarios,
@@ -44,6 +45,11 @@ export const REGISTRO: Record<string, H> = {
   listarMesas: mesas.listarMesas,
   entrarPorQr: mesas.entrarPorQr,
   abrirComanda: mesas.abrirComanda,
+  listarCartoes: mesas.listarCartoes,
+  listarCartoesImpressao: mesas.listarCartoesImpressao,
+  entrarPorCartao: mesas.entrarPorCartao,
+  adicionarCartoes: mesas.adicionarCartoes,
+  removerCartao: mesas.removerCartao,
   salvarMesa: mesas.salvarMesa,
   excluirMesa: mesas.excluirMesa,
   // comandas
@@ -77,15 +83,18 @@ export const REGISTRO: Record<string, H> = {
   getResumoDashboard: relatorios.getResumoDashboard,
   // assinatura do negócio
   getAssinatura: acesso.getAssinatura,
+  // painel do admin
+  getPrimeirosPassos: acesso.getPrimeirosPassos,
 };
 
 /** com a assinatura vencida/suspensa, só isto funciona (entrar e ver como regularizar) */
-export const LIBERADAS_SEM_ASSINATURA = new Set(["login", "logout", "sessaoAtual", "getEstabelecimento", "getAssinatura"]);
+export const LIBERADAS_SEM_ASSINATURA = new Set(["login", "entrarComToken", "logout", "sessaoAtual", "getEstabelecimento", "getAssinatura"]);
 
 /** operações do domínio principal (site do produto + painel da plataforma) */
 export const REGISTRO_PLATAFORMA: Record<string, H> = {
   verificarSlug: plataforma.verificarSlug,
   cadastrarNegocio: plataforma.cadastrarNegocio,
+  acessarConta: plataforma.acessarConta,
   plataformaEntrar: plataforma.plataformaEntrar,
   plataformaSair: plataforma.plataformaSair,
   plataformaSessao: plataforma.plataformaSessao,

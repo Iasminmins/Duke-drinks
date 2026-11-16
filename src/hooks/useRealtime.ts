@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 /** dados que mudam pouco: não precisam ser recarregados a cada ciclo */
-const ESTATICAS = new Set(["cardapio", "cardapio-admin", "estabelecimento", "usuarios", "mesas"]);
+const ESTATICAS = new Set(["cardapio", "cardapio-admin", "estabelecimento", "usuarios", "mesas", "primeiros-passos", "cartoes-impressao"]);
 
 const INTERVALO_MS = 5000;
 

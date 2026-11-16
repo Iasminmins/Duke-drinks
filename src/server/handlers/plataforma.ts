@@ -6,7 +6,7 @@ import { MODELO_POR_TIPO, PRODUTO, TIPOS_NEGOCIO, type TipoNegocio } from "@/lib
 import { ServiceError } from "@/services/_base";
 import { poolPlataforma } from "../db";
 import { bloqueado, registrarFalha } from "../limite";
-import { senhaPlataformaConfere } from "../sessao";
+import { criarToken, senhaPlataformaConfere } from "../sessao";
 import { esquecerTenant } from "../tenant";
 import type { Ctx } from "../comum";
 
@@ -47,8 +47,11 @@ export interface NovoNegocio {
   senha: string;
 }
 
+/** validade do link que leva o dono direto para dentro do sistema logo após o cadastro */
+const ENTRADA_MS = 10 * 60_000;
+
 /** cadastro self-service: cria o negócio, o administrador e um cardápio inicial pelo tipo */
-export async function cadastrarNegocio(ctx: Ctx, d: NovoNegocio): Promise<{ slug: string; url: string }> {
+export async function cadastrarNegocio(ctx: Ctx, d: NovoNegocio): Promise<{ slug: string; url: string; entrada: string }> {
   const chave = `cadastro:${ctx.ip}`;
   if (bloqueado(chave, 5, 60 * 60_000)) {
     throw new ServiceError("Muitos cadastros a partir desta conexão. Tente de novo mais tarde.", "PROIBIDO");
@@ -74,6 +77,7 @@ export async function cadastrarNegocio(ctx: Ctx, d: NovoNegocio): Promise<{ slug
   const id = `est_${randomBytes(8).toString("hex")}`;
   const modelo = MODELO_POR_TIPO[tipo];
   const c = await poolPlataforma().connect();
+  let adminId = "";
   try {
     await c.query("begin");
     await c.query(
@@ -85,10 +89,11 @@ export async function cadastrarNegocio(ctx: Ctx, d: NovoNegocio): Promise<{ slug
     await c.query("select set_config('app.eid', $1, true)", [id]);
     await c.query("set local role app_rls");
     await c.query(`insert into estabelecimento (id, nome) values ($1, $2)`, [id, nomeNegocio]);
-    await c.query(
-      `insert into usuarios (nome, papel, login, senha_hash) values ($1, 'admin', $2, crypt($3, gen_salt('bf')))`,
+    const adm = await c.query<{ id: string }>(
+      `insert into usuarios (nome, papel, login, senha_hash) values ($1, 'admin', $2, crypt($3, gen_salt('bf'))) returning id`,
       [responsavel, login, senha],
     );
+    adminId = adm.rows[0].id;
     for (const s of modelo.setores) {
       await c.query(`insert into setores (nome, slug) values ($1, $2)`, [s.nome, s.slug]);
     }
@@ -105,7 +110,56 @@ export async function cadastrarNegocio(ctx: Ctx, d: NovoNegocio): Promise<{ slug
   }
   registrarFalha(chave); // conta cadastros por IP (não é falha, é limite de volume)
   esquecerTenant(v.slug);
-  return { slug: v.slug, url: urlDoTenant(v.slug) };
+  const entrada = criarToken({ uid: adminId, papel: "admin", eid: id, tipo: "entrada" }, ENTRADA_MS);
+  return { slug: v.slug, url: urlDoTenant(v.slug), entrada };
+}
+
+// ------------------------------------------------------------------ login único (site do produto)
+export interface ContaAcesso {
+  nome: string;
+  slug: string;
+  /** endereço que já entra logado (link curto de entrada) */
+  url: string;
+}
+
+/**
+ * Login pelo site do produto, sem precisar saber o endereço do negócio:
+ * e-mail do responsável (do cadastro) + senha de um administrador daquele negócio.
+ * Devolve os negócios em que a senha confere, cada um com o link que já entra logado.
+ */
+export async function acessarConta(ctx: Ctx, emailBruto: unknown, senhaBruta: unknown): Promise<ContaAcesso[]> {
+  const email = String(emailBruto ?? "").trim().toLowerCase();
+  const senha = String(senhaBruta ?? "");
+  const chave = `acessar:${ctx.ip}:${email}`;
+  if (bloqueado(chave, 5, 15 * 60_000)) throw new ServiceError("Muitas tentativas. Aguarde 15 minutos e tente de novo.", "PROIBIDO");
+  if (!email || !senha) throw new ServiceError("Informe o e-mail e a senha");
+
+  // negócios deste e-mail em que algum administrador ativo tem essa senha
+  // (camada de plataforma: consulta com o estabelecimento explícito, fora do escopo de um negócio)
+  const r = await poolPlataforma().query<{ eid: string; slug: string; nome: string; uid: string }>(
+    `select distinct on (t.id) t.id as eid, t.slug, e.nome, u.id as uid
+       from tenants t
+       join estabelecimento e on e.id = t.id
+       join usuarios u on u.estabelecimento_id = t.id and u.papel = 'admin' and u.ativo
+      where lower(t.responsavel_email) = $1
+        and t.status <> 'cancelado'
+        and u.senha_hash = crypt($2, u.senha_hash)
+      order by t.id, u.criado_em`,
+    [email, senha],
+  );
+  if (!r.rowCount) {
+    registrarFalha(chave);
+    throw new ServiceError("E-mail ou senha incorretos", "PROIBIDO");
+  }
+  return r.rows
+    .map((x) => ({
+      nome: x.nome,
+      slug: x.slug,
+      url: `${urlDoTenant(x.slug)}/entrar?t=${encodeURIComponent(
+        criarToken({ uid: x.uid, papel: "admin", eid: x.eid, tipo: "entrada" }, ENTRADA_MS),
+      )}`,
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
 // ------------------------------------------------------------------ painel do dono da plataforma

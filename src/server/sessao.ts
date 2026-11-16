@@ -14,6 +14,8 @@ export interface Sessao {
   /** estabelecimento a que a sessão pertence; a sessão não vale em outro subdomínio */
   eid: string;
   exp: number;
+  /** "entrada" = link curto gerado no cadastro para o dono entrar direto; nunca vale como cookie de sessão */
+  tipo?: "entrada";
 }
 
 function segredo() {
@@ -25,8 +27,8 @@ function segredo() {
 const b64 = (s: string) => Buffer.from(s).toString("base64url");
 const assinar = (dados: string) => createHmac("sha256", segredo()).update(dados).digest("base64url");
 
-export function criarToken(s: Omit<Sessao, "exp">): string {
-  const corpo = b64(JSON.stringify({ ...s, exp: Date.now() + DURACAO_MS }));
+export function criarToken(s: Omit<Sessao, "exp">, duracaoMs = DURACAO_MS): string {
+  const corpo = b64(JSON.stringify({ ...s, exp: Date.now() + duracaoMs }));
   return `${corpo}.${assinar(corpo)}`;
 }
 

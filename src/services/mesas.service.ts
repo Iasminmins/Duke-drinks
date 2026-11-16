@@ -33,6 +33,47 @@ export function abrirComanda(dados: {
   return rpc("abrirComanda", dados);
 }
 
+/** cartão de comanda físico (número impresso), com quem está usando agora */
+export interface Cartao {
+  numero: number;
+  emUso: boolean;
+  clienteNome?: string;
+}
+
+export function listarCartoes(): Promise<Cartao[]> {
+  return rpc("listarCartoes");
+}
+
+/** número + QR fixo do cartão (para imprimir) */
+export interface CartaoImpressao {
+  numero: number;
+  token: string;
+}
+
+export function listarCartoesImpressao(): Promise<CartaoImpressao[]> {
+  return rpc("listarCartoesImpressao");
+}
+
+/** resultado de escanear o QR fixo de um cartão */
+export interface EntradaCartao {
+  numero: number;
+  /** livre: sem comanda aberta · confirmar: pedir os 4 últimos do celular · liberada: segue com o token */
+  situacao: "livre" | "confirmar" | "liberada";
+  token?: string;
+}
+
+export function entrarPorCartao(token: string, ultimos?: string): Promise<EntradaCartao> {
+  return rpc("entrarPorCartao", token, ultimos);
+}
+
+export function adicionarCartoes(de: number, ate: number): Promise<{ adicionados: number }> {
+  return rpc("adicionarCartoes", de, ate);
+}
+
+export function removerCartao(numero: number): Promise<void> {
+  return rpc("removerCartao", numero);
+}
+
 export function salvarMesa(dados: Omit<Mesa, "id"> & { id?: string }): Promise<Mesa> {
   return rpc("salvarMesa", dados);
 }

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { ClienteDialog } from "@/components/garcom/cliente-dialog";
-import { abrirComanda, listarComandasAtivas, listarMesas } from "@/services/mesas.service";
+import { abrirComanda, listarCartoes, listarComandasAtivas, listarMesas } from "@/services/mesas.service";
 import { useNow } from "@/hooks/useNow";
 import { formatBRL, tempoDesde } from "@/lib/format";
 import { mensagemErro } from "@/lib/errors";
@@ -37,12 +37,17 @@ export default function ComandasPage() {
   const [abrir, setAbrir] = useState(false);
   const q = useQuery({ queryKey: ["comandas-ativas"], queryFn: listarComandasAtivas });
   const mesasQ = useQuery({ queryKey: ["mesas"], queryFn: listarMesas });
+  const cartoesQ = useQuery({ queryKey: ["cartoes"], queryFn: listarCartoes });
 
   const nova = useMutation({
     mutationFn: abrirComanda,
     onSuccess: (c) => {
       setAbrir(false);
-      toast.success(`Comanda ${c.numero} aberta. Mostre o QR para o cliente.`);
+      toast.success(
+        (cartoesQ.data ?? []).length
+          ? `Comanda ${c.numero} aberta. Entregue o cartão ${c.numero} ao cliente.`
+          : `Comanda ${c.numero} aberta. Mostre o QR para o cliente.`,
+      );
       router.push(`/garcom/comanda/${c.numero}`);
     },
     onError: (e) => toast.error(mensagemErro(e)),
@@ -145,6 +150,7 @@ export default function ComandasPage() {
         confirmar="Abrir comanda"
         loading={nova.isPending}
         mesas={mesasQ.data ?? []}
+        cartoes={cartoesQ.data ?? []}
         onSalvar={(nome, celular, o) => nova.mutate({ nome, celular, mesaId: o.mesaId, numero: o.numero })}
       />
     </div>

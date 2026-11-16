@@ -9,6 +9,8 @@ import { ErrorState, EmptyState } from "@/components/ui/empty-state";
 import { getResumoDashboard } from "@/services/relatorios.service";
 import { FORMA_LABEL } from "@/lib/labels";
 import { formatBRL } from "@/lib/format";
+import { Suspense } from "react";
+import { PrimeirosPassos } from "@/components/admin/primeiros-passos";
 
 export default function Dashboard() {
   const q = useQuery({ queryKey: ["dashboard"], queryFn: getResumoDashboard });
@@ -20,6 +22,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <Suspense>
+        <PrimeirosPassos />
+      </Suspense>
       <p className="text-sm text-muted">Indicadores das últimas 24 horas (cobre o expediente que vira a meia-noite).</p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={TrendingUp} label="Faturamento" valor={d && formatBRL(d.faturamentoDia)} destaque />
