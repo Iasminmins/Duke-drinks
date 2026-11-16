@@ -64,10 +64,18 @@ export function esquecerTenant(slug?: string) {
   else memo.clear();
 }
 
-/** o negócio da requisição atual (pelo endereço), ou null no site da plataforma */
+/**
+ * O domínio principal mostra o site do produto, mas também carrega o negócio
+ * padrão (hoje, só o Duke) direto nele — sem precisar de subdomínio — enquanto
+ * não existem outros negócios de verdade cadastrados. DEFAULT_TENANT_SLUG
+ * aponta pra esse negócio (slug na tabela "tenants").
+ */
 export async function tenantDoHost(host: string | null): Promise<{ plataforma: boolean; tenant: Tenant | null }> {
   const d = resolverHost(host);
-  if (d.tipo === "plataforma") return { plataforma: true, tenant: null };
+  if (d.tipo === "plataforma") {
+    const padrao = process.env.DEFAULT_TENANT_SLUG?.trim().toLowerCase();
+    return { plataforma: true, tenant: padrao ? await tenantPorSlug(padrao) : null };
+  }
   return { plataforma: false, tenant: await tenantPorSlug(d.slug) };
 }
 

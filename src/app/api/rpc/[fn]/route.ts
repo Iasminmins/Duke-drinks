@@ -42,8 +42,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fn:
   const { plataforma, tenant } = await tenantDoHost(host);
   if (!plataforma && !tenant) return erro(404, "Estabelecimento não encontrado", "NAO_ENCONTRADO");
 
-  // no domínio principal só existem as operações da plataforma; nos negócios, só as do negócio
-  const tabela = plataforma ? REGISTRO_PLATAFORMA : REGISTRO;
+  // no domínio principal valem as operações da plataforma (cadastro, planos) E as do
+  // negócio padrão (login, admin, cozinha, caixa etc. do Duke); nos subdomínios de um
+  // negócio futuro, só as do negócio.
+  const tabela = plataforma ? { ...REGISTRO_PLATAFORMA, ...REGISTRO } : REGISTRO;
   const handler = Object.prototype.hasOwnProperty.call(tabela, fn) ? tabela[fn] : undefined;
   if (!handler) return erro(404, "Operação desconhecida", "NAO_ENCONTRADO");
 
