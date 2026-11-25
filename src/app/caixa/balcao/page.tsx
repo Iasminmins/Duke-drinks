@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Barcode, Minus, Plus, Search, ShoppingCart, Trash2 } from "lucide-react";
+import { Barcode, Minus, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { formatBRL } from "@/lib/format";
 import { mensagemErro } from "@/lib/errors";
 import { round2 } from "@/lib/utils";
 import type { FormaPagamento, VendaBalcao } from "@/types";
+import { ComprovanteVenda } from "@/components/caixa/comprovante-venda";
 
 type Linha = { produto: ProdutoEstoque; quantidade: number; entradaPeso?: string };
 const peso = (q: number) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(q);
@@ -43,6 +44,7 @@ export default function BalcaoPage() {
   const [emitirFiscal, setEmitirFiscal] = useState(false);
   const [clienteNome, setClienteNome] = useState("");
   const [clienteDocumento, setClienteDocumento] = useState("");
+  const [vendaParaImprimir, setVendaParaImprimir] = useState<VendaBalcao | null>(null);
   const totalBruto = round2(carrinho.reduce((s, l) => s + l.produto.preco * l.quantidade, 0));
   const total = round2(totalBruto - Math.min(Math.max(desconto, 0), totalBruto));
   const temPesoPendente = carrinho.some((l) => l.produto.unidade?.toLowerCase() === "kg" && l.quantidade <= 0);
@@ -50,6 +52,17 @@ export default function BalcaoPage() {
     const t = termo.trim().toLowerCase();
     return (produtosQ.data ?? []).filter((p) => !t || p.nome.toLowerCase().includes(t) || (p.codigoBarras ?? "").includes(t)).slice(0, 8);
   }, [produtosQ.data, termo]);
+
+  useEffect(() => {
+    if (!vendaParaImprimir) return;
+    const timer = window.setTimeout(() => window.print(), 150);
+    const limpar = () => setVendaParaImprimir(null);
+    window.addEventListener("afterprint", limpar, { once: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", limpar);
+    };
+  }, [vendaParaImprimir]);
 
   function adicionar(p: ProdutoEstoque) {
     const porPeso = p.unidade?.toLowerCase() === "kg";
@@ -97,6 +110,7 @@ export default function BalcaoPage() {
       return { venda, fiscalError };
     },
     onSuccess: ({ venda, fiscalError }) => {
+      setVendaParaImprimir(venda);
       setCarrinho([]); setDesconto(0); setRecebido(0); setEmitirFiscal(false); setClienteNome(""); setClienteDocumento("");
       void qc.invalidateQueries({ queryKey: ["produtos-balcao"] });
       void qc.invalidateQueries({ queryKey: ["vendas-balcao"] });
@@ -188,8 +202,35 @@ export default function BalcaoPage() {
       </Card>
     </div>
     <div className="mt-8"><h2 className="mb-3 font-display text-2xl">Vendas recentes</h2><Card className="divide-y divide-line">
-      {(vendasQ.data ?? []).slice(0, 12).map((v: VendaBalcao) => <div key={v.id} className="flex flex-wrap items-center gap-3 p-3 text-sm"><b>#{v.numero}</b><span className="flex-1 text-muted">{new Date(v.criadoEm).toLocaleString("pt-BR")}</span><span>{v.itens.map((i) => `${i.quantidade} ${i.unidade} ${i.nome}`).join(", ")}</span><b>{formatBRL(v.total)}</b>{v.fiscal && <span className={v.fiscal.status === "autorizado" ? "text-ok" : "text-warn"}>NFC-e: {v.fiscal.status}{v.fiscal.numero ? ` · ${v.fiscal.numero}` : ""}</span>}{v.fiscal?.status === "autorizado" && v.fiscal.urlQrcode && <a className="text-gold underline" href={v.fiscal.urlQrcode} target="_blank" rel="noreferrer">Ver QR da NFC-e</a>}{v.fiscal && v.fiscal.status !== "autorizado" && <Button size="sm" variant="secondary" loading={retryFiscal.isPending} onClick={() => retryFiscal.mutate(v.id)}>Tentar NFC-e</Button>}</div>)}
+      {(vendasQ.data ?? []).slice(0, 12).map((v: VendaBalcao) => <div key={v.id} className="flex flex-wrap items-center gap-3 p-3 text-sm"><b>#{v.numero}</b><span className="flex-1 text-muted">{new Date(v.criadoEm).toLocaleString("pt-BR")}</span><span>{v.itens.map((i) => `${i.quantidade} ${i.unidade} ${i.nome}`).join(", ")}</span><b>{formatBRL(v.total)}</b><Button size="sm" variant="secondary" onClick={() => setVendaParaImprimir(v)}><Printer className="h-4 w-4" /> Comprovante</Button>{v.fiscal && <span className={v.fiscal.status === "autorizado" ? "text-ok" : "text-warn"}>NFC-e: {v.fiscal.status}{v.fiscal.numero ? ` · ${v.fiscal.numero}` : ""}</span>}{v.fiscal?.status === "autorizado" && v.fiscal.urlQrcode && <a className="text-gold underline" href={v.fiscal.urlQrcode} target="_blank" rel="noreferrer">Ver QR da NFC-e</a>}{v.fiscal && v.fiscal.status !== "autorizado" && <Button size="sm" variant="secondary" loading={retryFiscal.isPending} onClick={() => retryFiscal.mutate(v.id)}>Tentar NFC-e</Button>}</div>)}
       {!vendasQ.data?.length && <p className="p-4 text-sm text-muted">As vendas deste caixa aparecem aqui.</p>}
     </Card></div>
+    {vendaParaImprimir && <ComprovanteVenda venda={vendaParaImprimir} estabelecimento={estQ.data} />}
+    <style jsx global>{`
+      .comprovante-venda { display: none; }
+      @page { size: 80mm auto; margin: 3mm; }
+      @media print {
+        html, body { width: 80mm !important; margin: 0 !important; background: #fff !important; color: #111 !important; }
+        body * { visibility: hidden !important; }
+        .comprovante-venda, .comprovante-venda * { visibility: visible !important; }
+        .comprovante-venda { display: block !important; position: absolute !important; inset: 0 auto auto 0 !important; width: 74mm !important; padding: 0 !important; color: #111 !important; background: #fff !important; font: 10px/1.35 Arial, sans-serif !important; }
+        .comprovante-cabecalho { text-align: center; border-bottom: 1px dashed #555; padding-bottom: 8px; }
+        .comprovante-logo { display: block; width: 8mm; height: 8mm; margin: 0 auto 2mm; object-fit: contain; }
+        .comprovante-cabecalho h1 { font-size: 15px; font-weight: 700; margin: 0 0 3px; }
+        .comprovante-cabecalho p { margin: 0 0 7px; font-size: 9px; }
+        .comprovante-cabecalho strong { font-size: 12px; letter-spacing: .04em; }
+        .comprovante-meta { display: flex; justify-content: space-between; gap: 6px; padding: 7px 0; border-bottom: 1px dashed #777; }
+        .comprovante-itens { padding: 7px 0; border-bottom: 1px dashed #777; }
+        .comprovante-colunas, .comprovante-item { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; }
+        .comprovante-colunas { font-size: 8px; font-weight: 700; margin-bottom: 5px; }
+        .comprovante-item { margin: 0 0 6px; }
+        .comprovante-item b { grid-column: 1 / -1; font-size: 10px; }
+        .comprovante-item span, .comprovante-item strong { font-size: 9px; }
+        .comprovante-totais, .comprovante-pagamento { padding: 7px 0; border-bottom: 1px dashed #777; }
+        .comprovante-totais p, .comprovante-pagamento p { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
+        .comprovante-totais .comprovante-total { font-size: 14px; border-top: 1px solid #333; padding-top: 5px; margin-top: 5px; }
+        .comprovante-pagamento .comprovante-obrigado { display: block; text-align: center; margin-top: 10px; font-weight: 700; }
+      }
+    `}</style>
   </div>;
 }

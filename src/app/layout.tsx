@@ -10,13 +10,13 @@ import "./globals.css";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { marca } = await marcaDaRequisicao();
-  const nome = marca?.nome ?? PRODUTO.nome;
+  const { plataforma, marca } = await marcaDaRequisicao();
+  const nome = plataforma ? PRODUTO.nome : marca?.nome ?? PRODUTO.nome;
   return {
     title: { default: nome, template: `%s · ${nome}` },
     description: marca ? `Cardápio digital e pedidos — ${nome}.` : PRODUTO.slogan,
     manifest: "/manifest.webmanifest",
-    icons: { icon: marca?.logoUrl && !marca.logoUrl.startsWith("data:") ? marca.logoUrl : "/icon.svg", apple: "/icon.svg" },
+    icons: { icon: plataforma ? "/brand/receipt-checkmark-small.png" : marca?.logoUrl && !marca.logoUrl.startsWith("data:") ? marca.logoUrl : "/icon.svg", apple: plataforma ? "/brand/receipt-checkmark-small.png" : "/icon.svg" },
     appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: nome },
   };
 }
