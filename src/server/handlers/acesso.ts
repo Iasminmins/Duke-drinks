@@ -157,7 +157,10 @@ export async function alternarUsuarioAtivo(ctx: Ctx, id: string): Promise<Usuari
 // ------------------------------------------------------------------ estabelecimento
 const EST_SQL = `select id, nome, logo_url as "logoUrl", taxa_servico_padrao as "taxaServicoPadrao",
   horario_funcionamento as "horarioFuncionamento", mensagem_topo as "mensagemTopo", endereco,
-  cor_primaria as "corPrimaria" from estabelecimento limit 1`;
+  cor_primaria as "corPrimaria", modulos,
+  fiscal_cnpj as "fiscalCnpj", fiscal_ie as "fiscalIe", fiscal_uf as "fiscalUf",
+  fiscal_codigo_municipio as "fiscalCodigoMunicipio", fiscal_regime as "fiscalRegime",
+  fiscal_ambiente as "fiscalAmbiente" from estabelecimento limit 1`;
 
 export async function getEstabelecimento(): Promise<Estabelecimento> {
   const e = await um<Estabelecimento>(EST_SQL);
@@ -173,6 +176,13 @@ const COLUNAS_EST: Record<string, string> = {
   mensagemTopo: "mensagem_topo",
   endereco: "endereco",
   corPrimaria: "cor_primaria",
+  modulos: "modulos",
+  fiscalCnpj: "fiscal_cnpj",
+  fiscalIe: "fiscal_ie",
+  fiscalUf: "fiscal_uf",
+  fiscalCodigoMunicipio: "fiscal_codigo_municipio",
+  fiscalRegime: "fiscal_regime",
+  fiscalAmbiente: "fiscal_ambiente",
 };
 
 export async function salvarEstabelecimento(ctx: Ctx, dados: Partial<Estabelecimento>): Promise<Estabelecimento> {
@@ -193,6 +203,22 @@ export async function salvarEstabelecimento(ctx: Ctx, dados: Partial<Estabelecim
     } else if (k === "corPrimaria") {
       v = String(v ?? "").trim();
       if (!/^#[0-9a-fA-F]{6}$/.test(v as string)) throw new ServiceError("Cor inválida (use o formato #RRGGBB)");
+    } else if (k === "modulos") {
+      const m = v as Estabelecimento["modulos"];
+      if (!m || typeof m.balcao !== "boolean" || typeof m.estoque !== "boolean" || typeof m.nfce !== "boolean") {
+        throw new ServiceError("Selecione opções válidas para o estabelecimento");
+      }
+      if (m.nfce && !m.balcao) throw new ServiceError("A emissão fiscal precisa do módulo de caixa de balcão");
+      v = JSON.stringify(m);
+    } else if (k === "fiscalAmbiente") {
+      if (v !== "homologacao" && v !== "producao") throw new ServiceError("Ambiente fiscal inválido");
+    } else if (k === "fiscalCnpj") {
+      const cnpj = String(v ?? "").replace(/\D/g, "");
+      if (cnpj && cnpj.length !== 14) throw new ServiceError("CNPJ fiscal deve ter 14 dígitos");
+      v = cnpj;
+    } else if (k === "fiscalUf") {
+      v = String(v ?? "").trim().toUpperCase();
+      if (v && !/^[A-Z]{2}$/.test(v as string)) throw new ServiceError("Informe a UF com duas letras");
     } else {
       v = String(v ?? "");
       if (k === "nome" && !(v as string).trim()) throw new ServiceError("Informe o nome do estabelecimento");

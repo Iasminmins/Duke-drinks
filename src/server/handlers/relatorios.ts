@@ -20,18 +20,24 @@ export async function getResumoDashboard(ctx: Ctx): Promise<ResumoDashboard> {
   const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
   const pagamentos = await query<{ forma: FormaPagamento; valor: number; criadoEm: string }>(
-    `select forma, valor, criado_em as "criadoEm" from pagamentos where not estornado and criado_em >= $1`,
+    `select forma, valor, criado_em as "criadoEm" from pagamentos where not estornado and criado_em >= $1
+     union all select forma, valor, criado_em as "criadoEm" from pagamentos_venda_balcao where criado_em >= $1`,
     [desde],
   );
   const fechadas = await query<Comanda>(`${COMANDA_SQL} where c.status = 'fechada' and c.fechada_em >= $1`, [desde]);
   const det = await detalhar(pool(), fechadas);
   const totais = det.map((d) => d.totais.total);
+  const vendasBalcao = await query<{ total: number }>(
+    `select total from vendas_balcao where status='concluida' and criado_em >= $1`, [desde]);
 
   const vendidos = await query<{ nome: string; quantidade: number; total: number }>(
-    `select i.nome, sum(i.quantidade)::int as quantidade, sum(i.preco_unitario * i.quantidade) as total
-     from itens_pedido i join pedidos p on p.id = i.pedido_id
-     where p.criado_em >= $1 and i.status <> 'cancelado'
-     group by i.produto_id, i.nome order by quantidade desc limit 6`,
+    `select nome, sum(quantidade) as quantidade, sum(total) as total from (
+       select i.produto_id as chave, i.nome, i.quantidade::numeric as quantidade, i.preco_unitario * i.quantidade as total
+         from itens_pedido i join pedidos p on p.id=i.pedido_id where p.criado_em >= $1 and i.status <> 'cancelado'
+       union all
+       select i.produto_id as chave, i.nome, i.quantidade, i.total from itens_venda_balcao i join vendas_balcao v on v.id=i.venda_id
+         where v.criado_em >= $1 and v.status='concluida'
+     ) itens group by chave,nome order by sum(quantidade) desc limit 6`,
     [desde],
   );
   const abertas = await um<{ n: number }>(
@@ -50,7 +56,9 @@ export async function getResumoDashboard(ctx: Ctx): Promise<ResumoDashboard> {
 
   return {
     faturamentoDia: round2(pagamentos.reduce((s, p) => s + p.valor, 0)),
-    ticketMedio: totais.length ? round2(totais.reduce((a, b) => a + b, 0) / totais.length) : 0,
+    ticketMedio: totais.length + vendasBalcao.length
+      ? round2((totais.reduce((a, b) => a + b, 0) + vendasBalcao.reduce((s, v) => s + v.total, 0)) / (totais.length + vendasBalcao.length))
+      : 0,
     comandasFechadas: fechadas.length,
     comandasAbertas: abertas?.n ?? 0,
     maisVendidos: vendidos.map((v) => ({ nome: v.nome, quantidade: v.quantidade, total: round2(v.total) })),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, History, Wallet } from "lucide-react";
+import { ClipboardList, History, Wallet, ScanBarcode } from "lucide-react";
 import { RoleGuard } from "@/components/layout/role-guard";
 import { PainelShell, type ItemNav } from "@/components/layout/painel-shell";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,11 @@ import { getCaixaAberto } from "@/services/caixa.service";
 
 const NAV: ItemNav[] = [
   { href: "/caixa", label: "Comandas", icon: ClipboardList, exato: true },
+  { href: "/caixa/balcao", label: "Balcão", icon: ScanBarcode },
   { href: "/caixa/dia", label: "Caixa do dia", icon: Wallet },
   { href: "/caixa/historico", label: "Histórico", icon: History },
 ];
-const MIGALHAS = { "/caixa": "Comandas", "/caixa/dia": "Caixa do dia", "/caixa/historico": "Histórico" };
+const MIGALHAS = { "/caixa": "Comandas", "/caixa/balcao": "Balcão", "/caixa/dia": "Caixa do dia", "/caixa/historico": "Histórico" };
 
 function StatusCaixa() {
   const q = useQuery({ queryKey: ["caixa-aberto"], queryFn: getCaixaAberto });

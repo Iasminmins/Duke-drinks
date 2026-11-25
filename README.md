@@ -1,6 +1,6 @@
 # Comandou — SaaS de pedidos para bares, restaurantes e lanchonetes
 
-Cardápio digital via QR code, pedidos direto na produção (cozinha/bar/chapa), garçom e caixa.
+Cardápio digital via QR code, pedidos direto na produção (cozinha/bar/chapa), garçom, caixa e venda de balcão com estoque.
 Multi-tenant: cada negócio tem o próprio endereço (`duke.seudominio.com.br`) e só enxerga os próprios dados.
 O Duke (Shopping Belvedere, Volta Redonda) é o primeiro cliente (`slug: duke`).
 
@@ -43,6 +43,7 @@ PLATAFORMA_PIX_CHAVE=                    # aparece na tela de assinatura
 PLATAFORMA_WHATSAPP=5524999999999        # botão de WhatsApp da tela de assinatura
 NEXT_PUBLIC_PRODUTO_NOME=Comandou        # nome do produto (padrão: Comandou)
 ALLOW_DEMO_RESET=false                   # true permite o admin APAGAR o movimento do próprio negócio
+FOCUS_NFE_TOKEN=                         # opcional; token da conta Focus NFe (somente servidor)
 ```
 
 ```bash
@@ -59,6 +60,19 @@ npm run dev
   `node db/migrar.mjs db/migrations/001_multitenant.sql`
 - `db/migrations/002_cartoes.sql`: cartões de comanda numerados (Admin → Comandas). Aplicar depois da 001:
   `node db/migrar.mjs db/migrations/002_cartoes.sql`
+- `db/migrations/003_balcao_estoque_nfce.sql`: módulos por estabelecimento, códigos de barras, estoque, vendas de balcão e documentos NFC-e. Aplicar depois da 002:
+  `node db/migrar.mjs db/migrations/003_balcao_estoque_nfce.sql`
+- `db/migrations/004_codigos_internos.sql`: sequência de códigos internos Code 39. Aplicar depois da 003:
+  `node db/migrar.mjs db/migrations/004_codigos_internos.sql`
+
+### Balcão, estoque e NFC-e
+
+- Ative os recursos por estabelecimento em **Admin → Configurações**. A operação de mesas/comandas continua disponível junto com o balcão.
+- Cadastre o GTIN/EAN, unidade e saldo inicial em **Admin → Produtos**. Para carnes vendidas no peso, use `kg`: o preço é por quilo e o caixa aceita pesos decimais (ex.: `0,650 kg`); a baixa de estoque mantém até três casas decimais. O saldo inicial e as movimentações ficam no histórico; vendas de balcão dão baixa automaticamente.
+- Operadores usam **Caixa → Balcão**. Leitores USB que digitam o código e enviam Enter funcionam como teclado. Produtos por peso podem usar unidade `kg` e quantidade decimal.
+- A emissão é feita pela API Focus NFe e começa em homologação. Configure `FOCUS_NFE_TOKEN` no ambiente do servidor e, na conta Focus, cadastre/credencie o emitente e seu certificado. Em **Admin → Configurações**, preencha CNPJ, inscrição estadual, UF, código IBGE e regime. Em cada produto, o contador deve informar NCM, CFOP, origem e CST/CSOSN de ICMS, PIS e COFINS.
+- O sistema grava o resultado, a chave e a referência de cada NFC-e. A venda e a baixa de estoque permanecem registradas se o serviço fiscal rejeitar a emissão, permitindo corrigir os dados e tentar novamente.
+- Homologação e produção usam ambientes distintos. Não mude para produção até que o contador valide os dados fiscais e o emitente esteja habilitado.
 
 > Atenção: `migrar.mjs` usa o `DATABASE_URL` do ambiente ou, se não houver, o do `.env.local` (produção).
 > Para o banco de teste, defina `DATABASE_URL` com a URL do `.env.teste.local` antes de rodar.
@@ -87,8 +101,8 @@ Next.js 15 (App Router) · Postgres (Neon) via `pg` · React 19 · TypeScript ·
 | `/login` | equipe | login mockado por papel |
 | `/garcom` | garçom | lista de comandas, abrir comanda (número + QR), lançar pedido, prontos, chamados |
 | `/kds/cozinha`, `/kds/bar` | cozinha / bar | produção em 3 colunas com timer e alerta sonoro |
-| `/caixa` | caixa | comandas, baixa de pagamento, estorno, caixa do dia, histórico |
-| `/admin` | admin | dashboard, cardápio, setores, mesas (opcionais), usuários, configurações |
+| `/caixa` | caixa | comandas, venda de balcão por código de barras, caixa do dia, histórico |
+| `/admin` | admin | dashboard, produtos/códigos de barras, estoque, setores, mesas (opcionais), usuários, configurações e módulos por cliente |
 | `/imprimir/comanda/[numero]` | garçom / caixa | cartão da comanda com número e QR para imprimir |
 | `/403`, `/sessao-expirada`, `/offline`, 404 | — | telas de sistema |
 

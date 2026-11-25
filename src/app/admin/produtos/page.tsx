@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ChevronLeft, ChevronRight, ImagePlus, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, ImagePlus, Pencil, Plus, Search, Tag, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
@@ -17,7 +18,7 @@ import { SkeletonLista } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProdutoImagem } from "@/components/cliente/produto-imagem";
-import { alternarEsgotado, excluirProduto, getCardapioAdmin, salvarProduto } from "@/services/cardapio.service";
+import { alternarEsgotado, excluirProduto, gerarCodigoBarrasInterno, getCardapioAdmin, salvarProduto } from "@/services/cardapio.service";
 import { formatBRL } from "@/lib/format";
 import { mensagemErro } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -83,13 +84,18 @@ export default function ProdutosPage() {
     adicionaisIds: [],
     esgotado: false,
     ativo: true,
+    codigoBarras: "",
+    controlaEstoque: false,
+    estoque: 0,
+    estoqueMinimo: 0,
+    unidade: "un",
   });
 
   return (
     <div>
       <PageHeader
         descricao={q.data ? `${filtrados.length} produto(s) · ${q.data.produtos.filter((p) => p.ativo && p.esgotado).length} esgotado(s)` : undefined}
-        acoes={<Button onClick={() => setEditando(novo())}><Plus className="h-4 w-4" /> Novo produto</Button>}
+        acoes={<div className="flex gap-2"><Link href="/admin/produtos/etiquetas"><Button variant="secondary"><Tag className="h-4 w-4" /> Etiquetas</Button></Link><Button onClick={() => setEditando(novo())}><Plus className="h-4 w-4" /> Novo produto</Button></div>}
       />
 
       <Card className="mb-4 grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_200px_160px_auto]">
@@ -144,7 +150,7 @@ export default function ProdutosPage() {
                     </td>
                     <td className="px-4 py-2.5 text-muted">{nomeCat(p.categoriaId)}</td>
                     <td className="px-4 py-2.5"><Badge tom={p.setorId === "s_bar" ? "info" : "warn"}>{nomeSetor(p.setorId)}</Badge></td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{formatBRL(p.preco)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{formatBRL(p.preco)}{p.unidade?.toLowerCase() === "kg" ? " / kg" : ""}</td>
                     <td className="px-4 py-2.5 text-center">
                       <Switch checked={p.esgotado} onChange={() => toggle.mutate(p.id)} label={`Esgotado: ${p.nome}`} />
                     </td>
@@ -166,7 +172,7 @@ export default function ProdutosPage() {
                 <ProdutoImagem produto={p} className="h-14 w-14 shrink-0 rounded-lg" />
                 <button className="min-w-0 flex-1 text-left" onClick={() => setEditando(p)}>
                   <p className="truncate font-medium">{p.nome}</p>
-                  <p className="text-xs text-muted">{nomeCat(p.categoriaId)} · {formatBRL(p.preco)}</p>
+                  <p className="text-xs text-muted">{nomeCat(p.categoriaId)} · {formatBRL(p.preco)}{p.unidade?.toLowerCase() === "kg" ? " / kg" : ""}</p>
                 </button>
                 <div className="flex flex-col items-center gap-1">
                   <Switch checked={p.esgotado} onChange={() => toggle.mutate(p.id)} label={`Esgotado: ${p.nome}`} />
@@ -219,6 +225,11 @@ function ProdutoForm({
   const [f, setF] = useState<Form>(inicial);
   const [erros, setErros] = useState<Record<string, string>>({});
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((x) => ({ ...x, [k]: v }));
+  const gerarCodigo = useMutation({
+    mutationFn: gerarCodigoBarrasInterno,
+    onSuccess: (codigo) => { set("codigoBarras", codigo); toast.success("Código interno gerado. Salve o produto para usar no caixa."); },
+    onError: (e) => toast.error(mensagemErro(e)),
+  });
 
   const salvar = useMutation({
     mutationFn: () => salvarProduto(f),
@@ -285,7 +296,7 @@ function ProdutoForm({
           <Textarea id="p-desc" value={f.descricao} maxLength={160} onChange={(e) => set("descricao", e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Preço" htmlFor="p-preco" erro={erros.preco}>
+            <Field label={f.unidade?.toLowerCase() === "kg" ? "Preço por kg" : "Preço por unidade"} htmlFor="p-preco" erro={erros.preco}>
             <MoneyInput id="p-preco" value={f.preco} onChange={(v) => set("preco", v)} aria-invalid={!!erros.preco} />
           </Field>
           <Field label="Setor de produção" htmlFor="p-setor" erro={erros.setorId}>
@@ -299,6 +310,35 @@ function ProdutoForm({
             {dados.categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </Select>
         </Field>
+
+        <details className="rounded-card border border-line p-3" open>
+          <summary className="cursor-pointer text-sm font-semibold">Balcão, estoque e dados fiscais</summary>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Field label="Código de barras" htmlFor="p-ean" dica="Use o EAN/GTIN do fabricante ou gere um código interno Code 39 para imprimir e ler no caixa.">
+              <div className="flex gap-2"><Input id="p-ean" value={f.codigoBarras ?? ""} onChange={(e) => set("codigoBarras", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} /><Button type="button" variant="secondary" loading={gerarCodigo.isPending} disabled={!!f.codigoBarras} onClick={() => gerarCodigo.mutate()}>Gerar</Button></div>
+            </Field>
+            <Field label="Unidade de venda" htmlFor="p-unidade" dica="Para carne vendida no peso, use kg. O preço será por quilo e o caixa aceitará frações, como 0,650 kg.">
+              <Input id="p-unidade" value={f.unidade ?? "un"} maxLength={6} onChange={(e) => set("unidade", e.target.value)} />
+            </Field>
+            <label className="flex items-center justify-between rounded-lg border border-line p-3 text-sm sm:col-span-2">
+              Controlar saldo deste produto <Switch checked={!!f.controlaEstoque} onChange={(v) => set("controlaEstoque", v)} />
+            </label>
+            {f.controlaEstoque && <>
+              <Field label={f.id ? "Saldo atual" : "Saldo inicial"} htmlFor="p-saldo" dica={f.id ? "Altere o saldo na tela de Estoque para manter o histórico." : "Este saldo será registrado como entrada inicial."}>
+                <Input id="p-saldo" type="number" min={0} step="0.001" value={f.estoque ?? 0} disabled={!!f.id} onChange={(e) => set("estoque", Number(e.target.value))} />
+              </Field>
+              <Field label="Avisar quando chegar a" htmlFor="p-minimo">
+                <Input id="p-minimo" type="number" min={0} step="0.001" value={f.estoqueMinimo ?? 0} onChange={(e) => set("estoqueMinimo", Number(e.target.value))} />
+              </Field>
+            </>}
+            <div className="sm:col-span-2"><p className="text-xs leading-relaxed text-subtle">Preencha os códigos fiscais fornecidos pelo contador. O sistema não define a tributação por conta própria.</p></div>
+            {([ ["ncm", "NCM"], ["cest", "CEST"], ["cfop", "CFOP"], ["origemIcms", "Origem ICMS"], ["cstIcms", "CST/CSOSN ICMS"], ["cstPis", "CST PIS"], ["cstCofins", "CST COFINS"] ] as const).map(([key, label]) => (
+              <Field key={key} label={label} htmlFor={`p-${key}`}>
+                <Input id={`p-${key}`} value={String(f[key] ?? "")} maxLength={12} onChange={(e) => set(key, e.target.value as never)} />
+              </Field>
+            ))}
+          </div>
+        </details>
 
         <fieldset>
           <legend className="mb-2 text-sm font-medium text-muted">Adicionais permitidos</legend>

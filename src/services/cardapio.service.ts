@@ -23,6 +23,10 @@ export function salvarProduto(dados: Omit<Produto, "id"> & { id?: string }): Pro
   return rpc("salvarProduto", dados);
 }
 
+export function gerarCodigoBarrasInterno(): Promise<string> {
+  return rpc("gerarCodigoBarrasInterno");
+}
+
 export function alternarEsgotado(id: string): Promise<Produto> {
   return rpc("alternarEsgotado", id);
 }

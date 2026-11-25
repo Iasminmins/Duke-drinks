@@ -8,6 +8,7 @@ import * as pedidos from "./handlers/pedidos";
 import * as caixa from "./handlers/caixa";
 import * as relatorios from "./handlers/relatorios";
 import * as plataforma from "./handlers/plataforma";
+import * as balcao from "./handlers/balcao";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type H = (ctx: Ctx, ...args: any[]) => Promise<unknown>;
@@ -32,6 +33,7 @@ export const REGISTRO: Record<string, H> = {
   getCardapio: cardapio.getCardapio,
   getCardapioAdmin: cardapio.getCardapioAdmin,
   salvarProduto: cardapio.salvarProduto,
+  gerarCodigoBarrasInterno: cardapio.gerarCodigoBarrasInterno,
   alternarEsgotado: cardapio.alternarEsgotado,
   excluirProduto: cardapio.excluirProduto,
   salvarCategoria: cardapio.salvarCategoria,
@@ -79,6 +81,14 @@ export const REGISTRO: Record<string, H> = {
   estornarPagamento: caixa.estornarPagamento,
   resumoCaixa: caixa.resumoCaixa,
   fecharCaixa: caixa.fecharCaixa,
+  buscarProdutoBalcao: balcao.buscarProdutoBalcao,
+  listarProdutosBalcao: balcao.listarProdutosBalcao,
+  registrarVendaBalcao: balcao.registrarVendaBalcao,
+  listarVendasBalcao: balcao.listarVendasBalcao,
+  emitirNfce: balcao.emitirNfce,
+  listarEstoque: balcao.listarEstoque,
+  listarMovimentosEstoque: balcao.listarMovimentosEstoque,
+  movimentarEstoque: balcao.movimentarEstoque,
   // relatórios
   getResumoDashboard: relatorios.getResumoDashboard,
   // assinatura do negócio

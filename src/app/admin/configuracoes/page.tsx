@@ -7,12 +7,13 @@ import { z } from "zod";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, Input, Textarea } from "@/components/ui/input";
+import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { SkeletonLista } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { getEstabelecimento, resetarDemo, salvarEstabelecimento } from "@/services/config.service";
 import { mensagemErro } from "@/lib/errors";
 import type { Estabelecimento } from "@/types";
+import { Switch } from "@/components/ui/switch";
 
 const schema = z.object({
   nome: z.string().trim().min(2, "Informe o nome"),
@@ -20,6 +21,12 @@ const schema = z.object({
   horarioFuncionamento: z.string().trim().max(60, "Máximo 60 caracteres"),
   mensagemTopo: z.string().trim().max(80, "Máximo 80 caracteres"),
   endereco: z.string().trim(),
+  fiscalCnpj: z.string().trim(),
+  fiscalIe: z.string().trim(),
+  fiscalUf: z.string().trim(),
+  fiscalCodigoMunicipio: z.string().trim(),
+  fiscalRegime: z.string().trim(),
+  fiscalAmbiente: z.enum(["homologacao", "producao"]),
 });
 
 export default function ConfiguracoesPage() {
@@ -141,6 +148,53 @@ export default function ConfiguracoesPage() {
           </div>
         </form>
       </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Recursos deste estabelecimento</CardTitle></CardHeader>
+        <div className="space-y-2 p-4">
+          {([
+            ["balcao", "Caixa de balcão", "Venda rápida por código de barras ou busca de produto."],
+            ["estoque", "Gestão de estoque", "Entradas, saídas e saldo mínimo por produto."],
+            ["nfce", "Emissão de NFC-e", "Emissão de cupom fiscal integrado à Focus NFe."],
+          ] as const).map(([key, titulo, descricao]) => (
+            <label key={key} className="flex items-center gap-4 rounded-lg border border-line p-3">
+              <span className="flex-1"><b className="block text-sm">{titulo}</b><span className="text-xs text-subtle">{descricao}</span></span>
+              <Switch checked={f.modulos?.[key] ?? false} onChange={(v) => {
+                const atual = f.modulos ?? { balcao: false, estoque: false, nfce: false };
+                const modulos = { ...atual, [key]: v };
+                if (key === "nfce" && v) modulos.balcao = true;
+                if (key === "balcao" && !v) modulos.nfce = false;
+                set({ modulos });
+              }} />
+            </label>
+          ))}
+          <div className="flex justify-end pt-2"><Button loading={salvar.isPending} onClick={() => salvar.mutate()}>Salvar recursos</Button></div>
+        </div>
+      </Card>
+
+      {f.modulos?.nfce && <Card>
+        <CardHeader><CardTitle>Dados do emitente NFC-e</CardTitle></CardHeader>
+        <form className="grid gap-4 p-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
+          <Field label="CNPJ" htmlFor="f-cnpj" dica="A Focus NFe precisa ter o certificado digital e credenciamento do emitente cadastrados.">
+            <Input id="f-cnpj" inputMode="numeric" value={f.fiscalCnpj ?? ""} onChange={(e) => set({ fiscalCnpj: e.target.value.replace(/\D/g, "") })} />
+          </Field>
+          <Field label="Inscrição estadual" htmlFor="f-ie"><Input id="f-ie" value={f.fiscalIe ?? ""} onChange={(e) => set({ fiscalIe: e.target.value })} /></Field>
+          <Field label="UF" htmlFor="f-uf"><Input id="f-uf" maxLength={2} value={f.fiscalUf ?? ""} onChange={(e) => set({ fiscalUf: e.target.value.toUpperCase() })} /></Field>
+          <Field label="Código IBGE do município" htmlFor="f-ibge"><Input id="f-ibge" inputMode="numeric" value={f.fiscalCodigoMunicipio ?? ""} onChange={(e) => set({ fiscalCodigoMunicipio: e.target.value.replace(/\D/g, "") })} /></Field>
+          <Field label="Regime tributário" htmlFor="f-regime" dica="Informe conforme o contador: 1 Simples Nacional, 2 Simples com excesso, 3 Regime normal.">
+            <Select id="f-regime" value={f.fiscalRegime ?? ""} onChange={(e) => set({ fiscalRegime: e.target.value })}>
+              <option value="">Selecione</option><option value="1">Simples Nacional</option><option value="2">Simples Nacional com excesso de sublimite</option><option value="3">Regime normal</option>
+            </Select>
+          </Field>
+          <Field label="Ambiente" htmlFor="f-ambiente" dica="Comece em homologação. Produção só após validação do contador e credenciamento.">
+            <Select id="f-ambiente" value={f.fiscalAmbiente ?? "homologacao"} onChange={(e) => set({ fiscalAmbiente: e.target.value as "homologacao" | "producao" })}>
+              <option value="homologacao">Homologação (testes)</option><option value="producao">Produção</option>
+            </Select>
+          </Field>
+          <p className="text-xs leading-relaxed text-subtle sm:col-span-2">Defina FOCUS_NFE_TOKEN no servidor e cadastre certificado, CSC e emitente na conta da Focus NFe antes de testar. A produção gera documentos fiscais válidos.</p>
+          <div className="flex justify-end sm:col-span-2"><Button type="submit" loading={salvar.isPending}>Salvar dados fiscais</Button></div>
+        </form>
+      </Card>}
 
       <div className="space-y-6">
         <Card className="p-4">

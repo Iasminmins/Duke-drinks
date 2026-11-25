@@ -53,7 +53,7 @@ export function plano(id: string | null | undefined): Plano {
   return PLANOS[(id as PlanoId) in PLANOS ? (id as PlanoId) : "essencial"];
 }
 
-export type TipoNegocio = "bar" | "restaurante" | "hamburgueria" | "lanchonete" | "pizzaria" | "cafeteria" | "outro";
+export type TipoNegocio = "bar" | "restaurante" | "hamburgueria" | "lanchonete" | "pizzaria" | "cafeteria" | "casa_carnes" | "outro";
 
 export const TIPOS_NEGOCIO: { id: TipoNegocio; label: string }[] = [
   { id: "bar", label: "Bar / choperia" },
@@ -62,6 +62,7 @@ export const TIPOS_NEGOCIO: { id: TipoNegocio; label: string }[] = [
   { id: "lanchonete", label: "Lanchonete" },
   { id: "pizzaria", label: "Pizzaria" },
   { id: "cafeteria", label: "Cafeteria" },
+  { id: "casa_carnes", label: "Casa de carnes / churrascaria" },
   { id: "outro", label: "Outro" },
 ];
 
@@ -94,6 +95,10 @@ export const MODELO_POR_TIPO: Record<TipoNegocio, { setores: { slug: "cozinha" |
   cafeteria: {
     setores: [{ slug: "cozinha", nome: "Cozinha" }, { slug: "bar", nome: "Barista" }],
     categorias: ["Cafés", "Bebidas geladas", "Salgados", "Doces"],
+  },
+  casa_carnes: {
+    setores: [{ slug: "cozinha", nome: "Churrasqueira" }, { slug: "bar", nome: "Bebidas" }],
+    categorias: ["Carnes", "Cortes especiais", "Acompanhamentos", "Cervejas", "Bebidas", "Mercearia"],
   },
   outro: {
     setores: [{ slug: "cozinha", nome: "Cozinha" }, { slug: "bar", nome: "Bar" }],

@@ -20,6 +20,13 @@ export interface Estabelecimento {
   endereco: string;
   /** cor de destaque da marca (#RRGGBB) */
   corPrimaria?: string;
+  modulos: { balcao: boolean; estoque: boolean; nfce: boolean };
+  fiscalCnpj?: string;
+  fiscalIe?: string;
+  fiscalUf?: string;
+  fiscalCodigoMunicipio?: string;
+  fiscalRegime?: string;
+  fiscalAmbiente?: "homologacao" | "producao";
 }
 
 export interface Usuario {
@@ -64,6 +71,51 @@ export interface Produto {
   esgotado: boolean;
   ativo: boolean;
   destaque?: boolean;
+  codigoBarras?: string;
+  controlaEstoque?: boolean;
+  estoque?: number;
+  estoqueMinimo?: number;
+  unidade?: string;
+  ncm?: string;
+  cest?: string;
+  cfop?: string;
+  origemIcms?: string;
+  cstIcms?: string;
+  cstPis?: string;
+  cstCofins?: string;
+}
+
+export interface ItemVendaBalcao {
+  produtoId: ID;
+  quantidade: number;
+}
+
+export interface VendaBalcao {
+  id: ID;
+  numero: number;
+  status: "concluida" | "cancelada";
+  criadoEm: ISODate;
+  subtotal: number;
+  desconto: number;
+  total: number;
+  itens: { nome: string; codigoBarras?: string; unidade: string; quantidade: number; precoUnitario: number; total: number }[];
+  pagamento: { forma: FormaPagamento; valor: number; valorRecebido?: number; troco?: number };
+  fiscal?: DocumentoFiscal;
+}
+
+export interface DocumentoFiscal {
+  id: ID;
+  vendaId: ID;
+  status: "pendente" | "autorizado" | "rejeitado" | "cancelado";
+  numero?: string;
+  serie?: string;
+  chaveAcesso?: string;
+  protocolo?: string;
+  urlDanfe?: string;
+  urlXml?: string;
+  urlQrcode?: string;
+  urlConsulta?: string;
+  mensagem: string;
 }
 
 export interface Mesa {

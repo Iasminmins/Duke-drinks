@@ -110,7 +110,8 @@ async function resumo(c: Q, caixaId: string): Promise<ResumoCaixa> {
   const caixa = await um<Caixa>(`${CAIXA_SQL} where id = $1`, [caixaId], c);
   if (!caixa) throw new ServiceError("Caixa não encontrado", "NAO_ENCONTRADO");
   const pgs = await query<{ forma: FormaPagamento; valor: number; troco: number | null }>(
-    `select forma, valor, troco from pagamentos where caixa_id = $1 and not estornado`,
+    `select forma, valor, troco from pagamentos where caixa_id = $1 and not estornado
+     union all select forma, valor, troco from pagamentos_venda_balcao where caixa_id = $1`,
     [caixaId],
     c,
   );

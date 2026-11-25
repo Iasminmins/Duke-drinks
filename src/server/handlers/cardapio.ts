@@ -8,6 +8,10 @@ import { erroAmigavel, exigir, type Ctx } from "../comum";
 const PRODUTO_SQL = `
   select p.id, p.nome, p.descricao, p.preco, p.categoria_id as "categoriaId", p.setor_id as "setorId",
          p.imagem_url as "imagemUrl", p.esgotado, p.ativo, p.destaque,
+         p.codigo_barras as "codigoBarras", p.controla_estoque as "controlaEstoque",
+         p.estoque, p.estoque_minimo as "estoqueMinimo", p.unidade,
+         p.ncm, p.cest, p.cfop, p.origem_icms as "origemIcms", p.cst_icms as "cstIcms",
+         p.cst_pis as "cstPis", p.cst_cofins as "cstCofins",
          coalesce((select array_agg(pa.adicional_id order by pa.adicional_id)
                    from produto_adicionais pa where pa.produto_id = p.id), '{}') as "adicionaisIds"
   from produtos p`;
@@ -45,7 +49,7 @@ async function produtoPorId(c: Q, id: string) {
 
 // ------------------------------------------------------------------ produtos
 export async function salvarProduto(ctx: Ctx, dados: Produto): Promise<Produto> {
-  exigir(ctx, "admin");
+  const sessao = exigir(ctx, "admin");
   const nome = String(dados?.nome ?? "").trim();
   const preco = Number(dados?.preco);
   if (nome.length < 2) throw new ServiceError("Informe o nome do produto");
@@ -53,6 +57,16 @@ export async function salvarProduto(ctx: Ctx, dados: Produto): Promise<Produto> 
   const imagem = dados.imagemUrl ? String(dados.imagemUrl) : null;
   if (imagem && imagem.length > 2_000_000) throw new ServiceError("Imagem muito grande (máx. cerca de 1,5 MB)");
   const adicionais = Array.isArray(dados.adicionaisIds) ? dados.adicionaisIds.map(String) : [];
+  const codigoBarras = String(dados.codigoBarras ?? "").trim().toUpperCase() || null;
+  if (codigoBarras && !(/^(?:\d{8,14}|CMD\d{10})$/.test(codigoBarras))) throw new ServiceError("Use um EAN/GTIN de 8 a 14 dígitos ou um código interno CMD gerado pelo sistema");
+  const quantidade = (v: unknown, label: string) => {
+    const n = Number(v ?? 0);
+    if (!Number.isFinite(n) || n < 0) throw new ServiceError(`${label} inválido`);
+    return n;
+  };
+  const estoque = quantidade(dados.estoque, "Estoque");
+  const estoqueMinimo = quantidade(dados.estoqueMinimo, "Estoque mínimo");
+  const unidade = String(dados.unidade ?? "un").trim().toLowerCase().slice(0, 6) || "un";
 
   try {
     return await tx(async (c) => {
@@ -60,19 +74,30 @@ export async function salvarProduto(ctx: Ctx, dados: Produto): Promise<Produto> 
       if (id) {
         const r = await um<{ id: string }>(
           `update produtos set nome=$2, descricao=$3, preco=$4, categoria_id=$5, setor_id=$6, imagem_url=$7,
-                  esgotado=$8, ativo=$9, destaque=$10 where id=$1 returning id`,
-          [id, nome, String(dados.descricao ?? ""), preco, dados.categoriaId, dados.setorId, imagem, !!dados.esgotado, dados.ativo !== false, !!dados.destaque],
+                  esgotado=$8, ativo=$9, destaque=$10, codigo_barras=$11, controla_estoque=$12,
+                  estoque_minimo=$13, unidade=$14, ncm=$15, cest=$16, cfop=$17, origem_icms=$18,
+                  cst_icms=$19, cst_pis=$20, cst_cofins=$21 where id=$1 returning id`,
+          [id, nome, String(dados.descricao ?? ""), preco, dados.categoriaId, dados.setorId, imagem, !!dados.esgotado, dados.ativo !== false, !!dados.destaque,
+            codigoBarras, !!dados.controlaEstoque, estoqueMinimo, unidade, String(dados.ncm ?? "").trim(), String(dados.cest ?? "").trim(),
+            String(dados.cfop ?? "").trim(), String(dados.origemIcms ?? "").trim(), String(dados.cstIcms ?? "").trim(), String(dados.cstPis ?? "").trim(), String(dados.cstCofins ?? "").trim()],
           c,
         );
         if (!r) throw new ServiceError("Produto não encontrado", "NAO_ENCONTRADO");
       } else {
         const r = await um<{ id: string }>(
-          `insert into produtos (nome, descricao, preco, categoria_id, setor_id, imagem_url, esgotado, ativo, destaque)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
-          [nome, String(dados.descricao ?? ""), preco, dados.categoriaId, dados.setorId, imagem, !!dados.esgotado, dados.ativo !== false, !!dados.destaque],
+          `insert into produtos (nome, descricao, preco, categoria_id, setor_id, imagem_url, esgotado, ativo, destaque,
+                                 codigo_barras, controla_estoque, estoque, estoque_minimo, unidade, ncm, cest, cfop,
+                                 origem_icms, cst_icms, cst_pis, cst_cofins)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) returning id`,
+          [nome, String(dados.descricao ?? ""), preco, dados.categoriaId, dados.setorId, imagem, !!dados.esgotado, dados.ativo !== false, !!dados.destaque,
+            codigoBarras, !!dados.controlaEstoque, estoque, estoqueMinimo, unidade, String(dados.ncm ?? "").trim(), String(dados.cest ?? "").trim(),
+            String(dados.cfop ?? "").trim(), String(dados.origemIcms ?? "").trim(), String(dados.cstIcms ?? "").trim(), String(dados.cstPis ?? "").trim(), String(dados.cstCofins ?? "").trim()],
           c,
         );
         id = r!.id;
+        if (estoque > 0 && dados.controlaEstoque) {
+          await c.query(`insert into movimentos_estoque (produto_id, usuario_id, tipo, quantidade, observacao) values ($1,$2,'entrada',$3,'Saldo inicial')`, [id, sessao.uid, estoque]);
+        }
       }
       await c.query(`delete from produto_adicionais where produto_id = $1`, [id]);
       if (adicionais.length) {
@@ -85,8 +110,16 @@ export async function salvarProduto(ctx: Ctx, dados: Produto): Promise<Produto> 
       return (await produtoPorId(c, id!))!;
     });
   } catch (e) {
-    return erroAmigavel(e, { "23503": "Categoria ou setor inválido" });
+    return erroAmigavel(e, { "23503": "Categoria ou setor inválido", "23505": "Já existe um produto com esse código de barras" });
   }
+}
+
+/** Reserva um identificador interno para Code 128. Não é um GTIN/EAN de fabricante. */
+export async function gerarCodigoBarrasInterno(ctx: Ctx): Promise<string> {
+  exigir(ctx, "admin");
+  const r = await um<{ numero: number }>(`select nextval('codigo_barras_interno_seq')::bigint as numero`);
+  if (!r || r.numero > 9_999_999_999) throw new ServiceError("A sequência de códigos internos chegou ao limite");
+  return `CMD${String(r.numero).padStart(10, "0")}`;
 }
 
 export async function alternarEsgotado(ctx: Ctx, id: string): Promise<Produto> {
