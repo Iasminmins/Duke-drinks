@@ -112,7 +112,7 @@ export default function AcessarPage() {
 
             <div className="mt-6 space-y-2 text-sm text-muted">
               <p>
-                É da equipe (garçom, cozinha, caixa)? Entre pelo link que o responsável do seu negócio mandou.
+                É da equipe (garçom, cozinha ou caixa)? <a href="/login" className="font-semibold underline">Entre com o código da sua empresa.</a>
               </p>
               <p>
                 Ainda não tem conta?{" "}

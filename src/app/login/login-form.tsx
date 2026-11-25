@@ -1,16 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
-import { useMarca } from "@/components/brand/marca";
+import { useDominioPlataforma, useMarca } from "@/components/brand/marca";
+import { MarcaComandou } from "@/components/brand/comandou";
 import { PRODUTO } from "@/lib/planos";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { login } from "@/services/auth.service";
+import { login, loginEmpresa } from "@/services/auth.service";
 import { useSession } from "@/stores/session";
 import { PAPEL_HOME } from "@/lib/labels";
 import { mensagemErro } from "@/lib/errors";
@@ -18,15 +19,23 @@ import { mensagemErro } from "@/lib/errors";
 export function LoginForm() {
   const router = useRouter();
   const marca = useMarca();
+  const plataforma = useDominioPlataforma();
   const params = useSearchParams();
   const entrar = useSession((s) => s.entrar);
+  const [empresa, setEmpresa] = useState(() => params.get("empresa") ?? "");
   const [usuario, setUsuario] = useState("");
   const [senha, setSenha] = useState("");
   const [ver, setVer] = useState(false);
 
+  useEffect(() => {
+    if (!plataforma || empresa || typeof window === "undefined") return;
+    setEmpresa(localStorage.getItem("empresa") ?? "");
+  }, [plataforma, empresa]);
+
   const m = useMutation({
-    mutationFn: () => login(usuario, senha),
+    mutationFn: () => plataforma ? loginEmpresa(empresa, usuario, senha) : login(usuario, senha),
     onSuccess: (u) => {
+      if (plataforma && typeof window !== "undefined") localStorage.setItem("empresa", empresa.trim().toLowerCase());
       entrar(u);
       toast.success(`Bem-vindo(a), ${u.nome.split(" ")[0]}!`);
       const next = params.get("next");
@@ -39,13 +48,13 @@ export function LoginForm() {
     onError: (e) => toast.error(mensagemErro(e)),
   });
 
-  const pronto = usuario.trim().length > 0 && senha.length > 0;
+  const pronto = (!plataforma || empresa.trim().length > 0) && usuario.trim().length > 0 && senha.length > 0;
 
   return (
     <main className="bg-pub flex min-h-dvh items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="flex justify-center">
-          <Logo />
+          {plataforma ? <MarcaComandou /> : <Logo />}
         </div>
         <form
           className="mt-8 rounded-2xl border border-line bg-bg-soft/90 p-6 shadow-2xl backdrop-blur"
@@ -58,12 +67,15 @@ export function LoginForm() {
           <p className="mt-1 text-sm text-muted">Entre com seu usuário e senha.</p>
 
           <div className="mt-6 space-y-4">
+            {plataforma && <Field label="Código da empresa" htmlFor="login-empresa">
+              <Input id="login-empresa" autoComplete="organization" autoCapitalize="none" autoFocus value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="ex.: duke" />
+            </Field>}
             <Field label="Usuário" htmlFor="login-usuario">
               <Input
                 id="login-usuario"
                 autoComplete="username"
                 autoCapitalize="none"
-                autoFocus
+                autoFocus={!plataforma}
                 value={usuario}
                 onChange={(e) => setUsuario(e.target.value)}
                 placeholder="seu usuário"
@@ -96,11 +108,11 @@ export function LoginForm() {
           </Button>
 
           <p className="mt-6 text-center text-xs text-subtle">
-            Esqueceu a senha? Peça para o administrador do {marca?.nome ?? "estabelecimento"} redefinir em Admin → Usuários.
+            {plataforma ? "Esqueceu a senha? Peça ao administrador da sua empresa para redefinir em Admin → Usuários." : <>Esqueceu a senha? Peça para o administrador do {marca?.nome ?? "estabelecimento"} redefinir em Admin → Usuários.</>}
           </p>
         </form>
         <p className="mt-6 text-center text-xs text-subtle">
-          {[marca?.nome, marca?.endereco].filter(Boolean).join(" · ")}
+          {plataforma ? "Acesso da equipe aos negócios cadastrados no Comandou." : [marca?.nome, marca?.endereco].filter(Boolean).join(" · ")}
         </p>
         <p className="mt-2 text-center text-[11px] text-subtle/70">{PRODUTO.nome}</p>
       </div>

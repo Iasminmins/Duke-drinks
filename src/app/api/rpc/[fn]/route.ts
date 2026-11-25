@@ -5,7 +5,7 @@ import { comTenant, um } from "@/server/db";
 import { SemSessao, type Ctx } from "@/server/comum";
 import { LIBERADAS_SEM_ASSINATURA, REGISTRO, REGISTRO_PLATAFORMA } from "@/server/registry";
 import { COOKIE, COOKIE_PLATAFORMA, DURACAO_MS, criarToken, lerToken } from "@/server/sessao";
-import { situacao, tenantDoHost } from "@/server/tenant";
+import { situacao, tenantDoHost, tenantPorId } from "@/server/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,13 +38,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fn:
     }
   }
 
-  // de qual negócio é esta chamada? (pelo subdomínio)
-  const { plataforma, tenant } = await tenantDoHost(host);
+  let args: unknown[] = [];
+  try {
+    const body = await req.json();
+    if (Array.isArray(body?.args)) args = body.args;
+  } catch {
+    // sem corpo: função sem argumentos
+  }
+
+  // O endereço vale em subdomínios; no domínio central, a sessão assinada escolhe o tenant.
+  const { plataforma, tenant: hostTenant } = await tenantDoHost(host);
+  let tenant = hostTenant;
+  // Um link de entrada assinado pode trocar a empresa ativa sem depender do cookie anterior.
+  if (plataforma && fn === "entrarComToken") {
+    const entrada = lerToken(String(args[0] ?? ""));
+    if (entrada?.tipo === "entrada") tenant = await tenantPorId(entrada.eid);
+  }
   if (!plataforma && !tenant) return erro(404, "Estabelecimento não encontrado", "NAO_ENCONTRADO");
 
-  // no domínio principal valem as operações da plataforma (cadastro, planos) E as do
-  // negócio padrão (login, admin, cozinha, caixa etc. do Duke); nos subdomínios de um
-  // negócio futuro, só as do negócio.
+  // No domínio principal, operações da plataforma e operações do tenant selecionado ficam disponíveis.
   const tabela = plataforma ? { ...REGISTRO_PLATAFORMA, ...REGISTRO } : REGISTRO;
   const handler = Object.prototype.hasOwnProperty.call(tabela, fn) ? tabela[fn] : undefined;
   if (!handler) return erro(404, "Operação desconhecida", "NAO_ENCONTRADO");
@@ -57,16 +69,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fn:
     }
   }
 
-  let args: unknown[] = [];
-  try {
-    const body = await req.json();
-    if (Array.isArray(body?.args)) args = body.args;
-  } catch {
-    // sem corpo: função sem argumentos
-  }
-
   const tokenPlat = plataforma ? lerToken(req.cookies.get(COOKIE_PLATAFORMA)?.value) : null;
   let novaSessao: Usuario | null = null;
+  let novaSessaoEid: string | null = null;
   let encerrar = false;
   let novaPlataforma = false;
 
@@ -84,8 +89,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fn:
         tenant,
         plataformaLogada: tokenPlat?.papel === "plataforma",
         ip: ipDe(req),
-        iniciarSessao: (u) => {
+        iniciarSessao: (u, tenantId) => {
           novaSessao = u;
+          novaSessaoEid = tenantId ?? tenant?.id ?? null;
         },
         encerrarSessao: () => {
           encerrar = true;
@@ -103,9 +109,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fn:
     });
     const seguro = req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https";
     const opcoes = { httpOnly: true, sameSite: "lax" as const, secure: seguro, path: "/" };
-    if (novaSessao && tenant) {
+    if (novaSessao && novaSessaoEid) {
       const u = novaSessao as Usuario;
-      res.cookies.set(COOKIE, criarToken({ uid: u.id, papel: u.papel, eid: tenant.id }), { ...opcoes, maxAge: DURACAO_MS / 1000 });
+      res.cookies.set(COOKIE, criarToken({ uid: u.id, papel: u.papel, eid: novaSessaoEid }), { ...opcoes, maxAge: DURACAO_MS / 1000 });
     } else if (novaPlataforma) {
       res.cookies.set(COOKIE_PLATAFORMA, criarToken({ uid: "plataforma", papel: "plataforma", eid: "*" }), {
         ...opcoes,
@@ -113,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fn:
         maxAge: DURACAO_MS / 1000,
       });
     } else if (encerrar) {
-      res.cookies.set(plataforma ? COOKIE_PLATAFORMA : COOKIE, "", { ...opcoes, maxAge: 0 });
+      res.cookies.set(fn === "plataformaSair" ? COOKIE_PLATAFORMA : COOKIE, "", { ...opcoes, maxAge: 0 });
     }
     return res;
   } catch (e) {

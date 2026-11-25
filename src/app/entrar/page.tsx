@@ -24,12 +24,15 @@ function Entrar() {
     feito.current = true;
     const t = params.get("t");
     if (!t) {
-      router.replace("/login?next=/admin");
+      const empresa = params.get("empresa");
+      router.replace(`/login?${empresa ? `empresa=${encodeURIComponent(empresa)}&` : ""}next=/admin`);
       return;
     }
     entrarComToken(t)
       .then((u) => {
         entrar(u);
+        const empresa = params.get("empresa");
+        if (empresa) localStorage.setItem("empresa", empresa);
         // "novo=1" vem só do cadastro: mostra as boas-vindas; no login de todo dia, painel normal
         router.replace(params.get("novo") ? "/admin?bemvindo=1" : "/admin");
       })
@@ -43,7 +46,7 @@ function Entrar() {
           <p className="font-display text-4xl">Não deu para entrar direto</p>
           <p className="mt-3 text-muted">{erro}</p>
           <Link
-            href="/login?next=/admin"
+            href={`/login?${params.get("empresa") ? `empresa=${encodeURIComponent(params.get("empresa")!)}&` : ""}next=/admin`}
             className="mt-6 inline-flex h-12 items-center justify-center rounded-[10px] bg-gold px-6 font-semibold text-bg hover:bg-gold-600"
           >
             Entrar com usuário e senha

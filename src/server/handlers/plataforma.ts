@@ -1,11 +1,12 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { normalizarCelular } from "@/lib/celular";
-import { slugReservado, urlDoTenant } from "@/lib/host";
+import { slugReservado, urlDaPlataforma } from "@/lib/host";
 import { MODELO_POR_TIPO, PRODUTO, TIPOS_NEGOCIO, type TipoNegocio } from "@/lib/planos";
 import { ServiceError } from "@/services/_base";
+import type { Usuario } from "@/types";
 import { poolPlataforma } from "../db";
-import { bloqueado, registrarFalha } from "../limite";
+import { bloqueado, limpar, registrarFalha } from "../limite";
 import { criarToken, senhaPlataformaConfere } from "../sessao";
 import { esquecerTenant } from "../tenant";
 import type { Ctx } from "../comum";
@@ -111,7 +112,7 @@ export async function cadastrarNegocio(ctx: Ctx, d: NovoNegocio): Promise<{ slug
   registrarFalha(chave); // conta cadastros por IP (não é falha, é limite de volume)
   esquecerTenant(v.slug);
   const entrada = criarToken({ uid: adminId, papel: "admin", eid: id, tipo: "entrada" }, ENTRADA_MS);
-  return { slug: v.slug, url: urlDoTenant(v.slug), entrada };
+  return { slug: v.slug, url: urlDaPlataforma(), entrada };
 }
 
 // ------------------------------------------------------------------ login único (site do produto)
@@ -155,11 +156,42 @@ export async function acessarConta(ctx: Ctx, emailBruto: unknown, senhaBruta: un
     .map((x) => ({
       nome: x.nome,
       slug: x.slug,
-      url: `${urlDoTenant(x.slug)}/entrar?t=${encodeURIComponent(
+      url: `${urlDaPlataforma()}/entrar?empresa=${encodeURIComponent(x.slug)}&t=${encodeURIComponent(
         criarToken({ uid: x.uid, papel: "admin", eid: x.eid, tipo: "entrada" }, ENTRADA_MS),
       )}`,
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+/** Login central de funcionário: o código da empresa escolhe o tenant antes de validar as credenciais. */
+export async function loginEmpresa(ctx: Ctx, slugBruto: unknown, usuarioBruto: unknown, senhaBruta: unknown): Promise<Usuario> {
+  const slug = String(slugBruto ?? "").trim().toLowerCase();
+  const login = String(usuarioBruto ?? "").trim();
+  const senha = String(senhaBruta ?? "");
+  if (!slug || !login || !senha) throw new ServiceError("Informe o código da empresa, usuário e senha");
+
+  const chave = `login:${ctx.ip}:${slug}:${login.toLowerCase()}`;
+  if (bloqueado(chave, 5, 60_000)) throw new ServiceError("Muitas tentativas. Aguarde 1 minuto e tente de novo.", "PROIBIDO");
+
+  const r = await poolPlataforma().query<Usuario & { eid: string }>(
+    `select u.id, u.nome, u.papel, u.ativo, u.login, t.id as eid
+       from tenants t
+       join usuarios u on u.estabelecimento_id = t.id
+      where t.slug = $1 and t.status <> 'cancelado'
+        and lower(u.login) = lower($2) and u.ativo
+        and u.senha_hash = crypt($3, u.senha_hash)
+      limit 1`,
+    [slug, login, senha],
+  );
+  const u = r.rows[0];
+  if (!u) {
+    registrarFalha(chave);
+    throw new ServiceError("Empresa, usuário ou senha incorretos", "PROIBIDO");
+  }
+  limpar(chave);
+  const { eid, ...usuario } = u;
+  ctx.iniciarSessao(usuario, eid);
+  return usuario;
 }
 
 // ------------------------------------------------------------------ painel do dono da plataforma

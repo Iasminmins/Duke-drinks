@@ -50,7 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
       </head>
       <body>
-        <MarcaProvider marca={marca}>
+        <MarcaProvider marca={marca} plataforma={plataforma}>
           <Providers>
             <OfflineBanner />
             <SwRegister />

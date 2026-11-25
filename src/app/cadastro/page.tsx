@@ -38,7 +38,7 @@ export default function CadastroPage() {
   const [slugEditado, setSlugEditado] = useState(false);
   const [slugStatus, setSlugStatus] = useState<{ ok: boolean; msg?: string } | null>(null);
   const [checando, setChecando] = useState(false);
-  const [pronto, setPronto] = useState<{ url: string; entrada: string } | null>(null);
+  const [pronto, setPronto] = useState<{ url: string; entrada: string; slug: string } | null>(null);
   const set = (p: Partial<typeof f>) => setF((v) => ({ ...v, ...p }));
 
   // endereço sugerido a partir do nome, até a pessoa mexer nele
@@ -68,7 +68,7 @@ export default function CadastroPage() {
 
   const m = useMutation({
     mutationFn: () => cadastrarNegocio({ ...f, celular: f.celular.replace(/\D/g, "") }),
-    onSuccess: (r) => setPronto({ url: r.url, entrada: r.entrada }),
+    onSuccess: (r) => setPronto({ url: r.url, entrada: r.entrada, slug: r.slug }),
     onError: (e) => toast.error(mensagemErro(e)),
   });
 
@@ -82,8 +82,11 @@ export default function CadastroPage() {
           <p className="mt-3 text-muted">
             O sistema do <b className="text-cream">{f.nomeNegocio}</b> já está no ar.
           </p>
+          <p className="mt-3 rounded-lg bg-surface px-4 py-3 text-sm text-muted">
+            Código da empresa para a equipe: <b className="text-cream">{pronto.slug}</b>
+          </p>
           <a
-            href={`${pronto.url}/entrar?novo=1&t=${encodeURIComponent(pronto.entrada)}`}
+            href={`${pronto.url}/entrar?novo=1&empresa=${encodeURIComponent(pronto.slug)}&t=${encodeURIComponent(pronto.entrada)}`}
             className="mt-6 inline-flex h-14 w-full items-center justify-center rounded-[12px] bg-gold text-base font-bold text-bg hover:bg-gold-600"
           >
             Entrar no meu sistema

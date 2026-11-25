@@ -21,7 +21,7 @@ export interface Ctx {
   /** o dono da plataforma está logado (só no domínio principal) */
   plataformaLogada: boolean;
   ip: string;
-  iniciarSessao: (u: Usuario) => void;
+  iniciarSessao: (u: Usuario, tenantId?: string) => void;
   encerrarSessao: () => void;
   iniciarSessaoPlataforma: () => void;
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import { ServiceError } from "@/services/_base";
 import type { Estabelecimento, Papel, Usuario } from "@/types";
-import { query, tx, um } from "../db";
+import { poolPlataforma, query, tx, um } from "../db";
 import { bloqueado, limpar, registrarFalha } from "../limite";
 import { exigir, exigirEquipe, exigirTenant, erroAmigavel, type Ctx } from "../comum";
 import { situacao } from "../tenant";
@@ -37,14 +37,16 @@ export async function login(ctx: Ctx, usuario: unknown, senha: unknown): Promise
  * O link só vale no endereço do próprio negócio e para um usuário que ainda existe e está ativo.
  */
 export async function entrarComToken(ctx: Ctx, t: unknown): Promise<Usuario> {
-  const tenant = exigirTenant(ctx);
   const s = lerToken(String(t ?? ""));
-  if (!s || s.tipo !== "entrada" || s.eid !== tenant.id) {
+  const tenantId = ctx.tenant?.id ?? s?.eid;
+  if (!s || s.tipo !== "entrada" || !tenantId || s.eid !== tenantId) {
     throw new ServiceError("Este link de acesso expirou. Entre com o usuário e a senha que você criou.", "PROIBIDO");
   }
-  const u = await um<Usuario>(`${USUARIO_SQL} where id = $1`, [s.uid]);
+  const u = ctx.tenant
+    ? await um<Usuario>(`${USUARIO_SQL} where id = $1`, [s.uid])
+    : (await poolPlataforma().query<Usuario>(`${USUARIO_SQL} where estabelecimento_id = $1 and id = $2`, [tenantId, s.uid])).rows[0];
   if (!u?.ativo) throw new ServiceError("Este acesso está desativado. Fale com o administrador.", "PROIBIDO");
-  ctx.iniciarSessao(u);
+  ctx.iniciarSessao(u, tenantId);
   return u;
 }
 

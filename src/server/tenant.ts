@@ -1,7 +1,8 @@
 import "server-only";
 import { cache } from "react";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { resolverHost } from "@/lib/host";
+import { COOKIE, lerToken } from "./sessao";
 import { comTenant, poolPlataforma, um } from "./db";
 
 export interface Tenant {
@@ -59,22 +60,30 @@ export async function tenantPorSlug(slug: string): Promise<Tenant | null> {
   return t;
 }
 
+export async function tenantPorId(id: string): Promise<Tenant | null> {
+  const hit = [...memo.values()].find((x) => x.t?.id === id && x.exp > Date.now());
+  if (hit) return hit.t;
+  const r = await poolPlataforma().query<Tenant>(`${TENANT_SQL} where id = $1`, [id]);
+  const t = r.rows[0] ?? null;
+  if (t) memo.set(t.slug.toLowerCase(), { t, exp: Date.now() + 30_000 });
+  return t;
+}
+
 export function esquecerTenant(slug?: string) {
   if (slug) memo.delete(slug.toLowerCase());
   else memo.clear();
 }
 
 /**
- * O domínio principal mostra o site do produto, mas também carrega o negócio
- * padrão (hoje, só o Duke) direto nele — sem precisar de subdomínio — enquanto
- * não existem outros negócios de verdade cadastrados. DEFAULT_TENANT_SLUG
- * aponta pra esse negócio (slug na tabela "tenants").
+ * No domínio principal, uma sessão assinada seleciona o negócio ativo.
+ * Sem sessão, o endereço pertence à plataforma e não assume um cliente padrão.
  */
 export async function tenantDoHost(host: string | null): Promise<{ plataforma: boolean; tenant: Tenant | null }> {
   const d = resolverHost(host);
   if (d.tipo === "plataforma") {
-    const padrao = process.env.DEFAULT_TENANT_SLUG?.trim().toLowerCase();
-    return { plataforma: true, tenant: padrao ? await tenantPorSlug(padrao) : null };
+    const token = lerToken((await cookies()).get(COOKIE)?.value);
+    const sessaoNegocio = token && token.papel !== "plataforma" && !token.tipo ? token : null;
+    return { plataforma: true, tenant: sessaoNegocio ? await tenantPorId(sessaoNegocio.eid) : null };
   }
   return { plataforma: false, tenant: await tenantPorSlug(d.slug) };
 }

@@ -98,13 +98,14 @@ export const REGISTRO: Record<string, H> = {
 };
 
 /** com a assinatura vencida/suspensa, só isto funciona (entrar e ver como regularizar) */
-export const LIBERADAS_SEM_ASSINATURA = new Set(["login", "entrarComToken", "logout", "sessaoAtual", "getEstabelecimento", "getAssinatura"]);
+export const LIBERADAS_SEM_ASSINATURA = new Set(["login", "loginEmpresa", "acessarConta", "entrarComToken", "logout", "sessaoAtual", "getEstabelecimento", "getAssinatura"]);
 
 /** operações do domínio principal (site do produto + painel da plataforma) */
 export const REGISTRO_PLATAFORMA: Record<string, H> = {
   verificarSlug: plataforma.verificarSlug,
   cadastrarNegocio: plataforma.cadastrarNegocio,
   acessarConta: plataforma.acessarConta,
+  loginEmpresa: plataforma.loginEmpresa,
   plataformaEntrar: plataforma.plataformaEntrar,
   plataformaSair: plataforma.plataformaSair,
   plataformaSessao: plataforma.plataformaSessao,

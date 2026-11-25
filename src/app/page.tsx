@@ -26,7 +26,7 @@ export default function SiteDoProduto() {
         <MarcaComandou />
         <nav className="flex items-center gap-4 text-sm">
           <a href="#planos" className="hidden text-muted hover:text-cream sm:inline">Planos</a>
-          <Link href="/login" className="font-semibold text-cream hover:text-gold">Entrar</Link>
+          <Link href="/acessar" className="font-semibold text-cream hover:text-gold">Entrar</Link>
           <Link href="/cadastro" className="rounded-[10px] bg-gold px-4 py-2 font-semibold text-bg hover:bg-gold-600">
             Testar grátis
           </Link>
