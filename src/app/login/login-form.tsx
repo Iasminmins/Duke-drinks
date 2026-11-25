@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { useDominioPlataforma, useMarca } from "@/components/brand/marca";
-import { MarcaComandou } from "@/components/brand/comandou";
+import { FontesComandou, MarcaComandou } from "@/components/brand/comandou";
 import { PRODUTO } from "@/lib/planos";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
@@ -51,22 +51,23 @@ export function LoginForm() {
   const pronto = (!plataforma || empresa.trim().length > 0) && usuario.trim().length > 0 && senha.length > 0;
 
   return (
-    <main className="bg-pub flex min-h-dvh items-center justify-center px-4 py-10">
+    <main className={plataforma ? "tema-comandou min-h-dvh px-4 py-8 sm:py-12" : "bg-pub flex min-h-dvh items-center justify-center px-4 py-10"}>
+      {plataforma && <FontesComandou />}
       <div className="w-full max-w-md">
         <div className="flex justify-center">
           {plataforma ? <MarcaComandou /> : <Logo />}
         </div>
         <form
-          className="mt-8 rounded-2xl border border-line bg-bg-soft/90 p-6 shadow-2xl backdrop-blur"
+          className={plataforma ? "mt-8 space-y-4 rounded-2xl border-2 border-cream p-6" : "mt-8 rounded-2xl border border-line bg-bg-soft/90 p-6 shadow-2xl backdrop-blur"}
           onSubmit={(e) => {
             e.preventDefault();
             if (pronto && !m.isPending) m.mutate();
           }}
         >
           <h1 className="font-display text-3xl">Acesso da equipe</h1>
-          <p className="mt-1 text-sm text-muted">Entre com seu usuário e senha.</p>
+          <p className={plataforma ? "mt-3 text-muted" : "mt-1 text-sm text-muted"}>Entre com seu usuário e senha.</p>
 
-          <div className="mt-6 space-y-4">
+          <div className={plataforma ? "space-y-4" : "mt-6 space-y-4"}>
             {plataforma && <Field label="Código da empresa" htmlFor="login-empresa">
               <Input id="login-empresa" autoComplete="organization" autoCapitalize="none" autoFocus value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="ex.: duke" />
             </Field>}
