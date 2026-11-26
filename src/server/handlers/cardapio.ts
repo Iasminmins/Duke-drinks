@@ -96,7 +96,7 @@ export async function salvarProduto(ctx: Ctx, dados: Produto): Promise<Produto> 
         );
         id = r!.id;
         if (estoque > 0 && dados.controlaEstoque) {
-          await c.query(`insert into movimentos_estoque (produto_id, usuario_id, tipo, quantidade, observacao) values ($1,$2,'entrada',$3,'Saldo inicial')`, [id, sessao.uid, estoque]);
+          await c.query(`insert into movimentos_estoque (produto_id, usuario_id, tipo, motivo, quantidade, observacao) values ($1,$2,'entrada','saldo_inicial',$3,'Saldo inicial')`, [id, sessao.uid, estoque]);
         }
       }
       await c.query(`delete from produto_adicionais where produto_id = $1`, [id]);

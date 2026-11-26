@@ -7,6 +7,7 @@ import { query, tx, um } from "../db";
 import { exigir, exigirTenant, type Ctx } from "../comum";
 
 type Modulos = { balcao: boolean; estoque: boolean; nfce: boolean };
+type MotivoMovimento = "saldo_inicial" | "compra" | "devolucao" | "venda_balcao" | "perda" | "vencimento" | "consumo_interno" | "quebra" | "contagem" | "outro";
 const PRODUTO_BARRA_SQL = `select id, nome, preco, codigo_barras as "codigoBarras", controla_estoque as "controlaEstoque",
   estoque, estoque_minimo as "estoqueMinimo", unidade from produtos`;
 const DOC_SQL = `select id, venda_id as "vendaId", status, numero, serie, chave_acesso as "chaveAcesso",
@@ -40,17 +41,25 @@ export async function listarEstoque(ctx: Ctx) {
 export async function listarMovimentosEstoque(ctx: Ctx) {
   exigir(ctx, "admin");
   if (!(await modulos()).estoque) throw new ServiceError("Ative o módulo de estoque nas configurações", "PROIBIDO");
-  return query<{ id: string; criadoEm: string; produtoNome: string; tipo: string; quantidade: number; observacao: string; usuarioNome: string }>(
-    `select m.id, m.criado_em as "criadoEm", p.nome as "produtoNome", m.tipo, m.quantidade, m.observacao, u.nome as "usuarioNome"
+  return query<{ id: string; criadoEm: string; produtoNome: string; tipo: string; motivo: MotivoMovimento; quantidade: number; observacao: string; usuarioNome: string }>(
+    `select m.id, m.criado_em as "criadoEm", p.nome as "produtoNome", m.tipo, m.motivo, m.quantidade, m.observacao, u.nome as "usuarioNome"
       from movimentos_estoque m join produtos p on p.id=m.produto_id join usuarios u on u.id=m.usuario_id
       order by m.criado_em desc limit 100`);
 }
 
-export async function movimentarEstoque(ctx: Ctx, d: { produtoId: string; tipo: "entrada" | "saida" | "ajuste"; quantidade: number; observacao?: string }) {
+export async function movimentarEstoque(ctx: Ctx, d: { produtoId: string; tipo: "entrada" | "saida" | "ajuste"; motivo: MotivoMovimento; quantidade: number; observacao?: string }) {
   const sessao = exigir(ctx, "admin");
   if (!(await modulos()).estoque) throw new ServiceError("Ative o módulo de estoque nas configurações", "PROIBIDO");
   const qtd = Number(d?.quantidade);
-  if (!Number.isFinite(qtd) || qtd <= 0 || !["entrada", "saida", "ajuste"].includes(d?.tipo)) throw new ServiceError("Informe uma quantidade e um tipo de movimento válidos");
+  const motivos: MotivoMovimento[] = ["saldo_inicial", "compra", "devolucao", "venda_balcao", "perda", "vencimento", "consumo_interno", "quebra", "contagem", "outro"];
+  const motivosPorTipo: Record<string, MotivoMovimento[]> = {
+    entrada: ["compra", "devolucao", "outro"],
+    saida: ["perda", "vencimento", "consumo_interno", "quebra", "outro"],
+    ajuste: ["contagem", "outro"],
+  };
+  if (!Number.isFinite(qtd) || qtd <= 0 || !["entrada", "saida", "ajuste"].includes(d?.tipo) || !motivos.includes(d?.motivo) || !motivosPorTipo[d.tipo]?.includes(d.motivo)) {
+    throw new ServiceError("Informe um tipo, motivo e quantidade válidos para o movimento");
+  }
   await tx(async (c) => {
     const p = await um<{ id: string; estoque: number; controlaEstoque: boolean }>(
       `select id, estoque, controla_estoque as "controlaEstoque" from produtos where id=$1 and ativo for update`, [String(d.produtoId)], c,
@@ -59,8 +68,8 @@ export async function movimentarEstoque(ctx: Ctx, d: { produtoId: string; tipo: 
     const saldo = d.tipo === "entrada" ? p.estoque + qtd : d.tipo === "saida" ? p.estoque - qtd : qtd;
     if (saldo < 0) throw new ServiceError("A saída é maior que o saldo disponível");
     await c.query(`update produtos set estoque=$2, controla_estoque=true where id=$1`, [p.id, saldo]);
-    await c.query(`insert into movimentos_estoque (produto_id, usuario_id, tipo, quantidade, observacao) values ($1,$2,$3,$4,$5)`,
-      [p.id, sessao.uid, d.tipo, qtd, String(d.observacao ?? "").trim().slice(0, 200)]);
+    await c.query(`insert into movimentos_estoque (produto_id, usuario_id, tipo, motivo, quantidade, observacao) values ($1,$2,$3,$4,$5,$6)`,
+      [p.id, sessao.uid, d.tipo, d.motivo, qtd, String(d.observacao ?? "").trim().slice(0, 200)]);
   });
 }
 
@@ -130,8 +139,8 @@ export async function registrarVendaBalcao(ctx: Ctx, d: {
         values ($1,$2,$3,$4,$5,$6,$7,$8)`, [venda.id, p.id, p.codigoBarras ?? null, p.nome, p.unidade ?? "un", quantidade, p.preco, linhaTotal]);
       if (p.controlaEstoque) {
         await c.query(`update produtos set estoque=estoque-$2 where id=$1`, [p.id, quantidade]);
-        await c.query(`insert into movimentos_estoque (produto_id, usuario_id, venda_id, tipo, quantidade, observacao)
-          values ($1,$2,$3,'saida',$4,'Venda de balcão')`, [p.id, sessao.uid, venda.id, quantidade]);
+        await c.query(`insert into movimentos_estoque (produto_id, usuario_id, venda_id, tipo, motivo, quantidade, observacao)
+          values ($1,$2,$3,'saida','venda_balcao',$4,'Venda de balcão')`, [p.id, sessao.uid, venda.id, quantidade]);
       }
     }
     if (d.emitirNfce) {

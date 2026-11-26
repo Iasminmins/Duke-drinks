@@ -2,6 +2,7 @@ import type { DocumentoFiscal, FormaPagamento, Produto, VendaBalcao } from "@/ty
 import { rpc } from "./_rpc";
 
 export interface ProdutoEstoque extends Pick<Produto, "id" | "nome" | "preco" | "codigoBarras" | "controlaEstoque" | "estoque" | "estoqueMinimo" | "unidade"> {}
+export type MotivoMovimentoEstoque = "saldo_inicial" | "compra" | "devolucao" | "venda_balcao" | "perda" | "vencimento" | "consumo_interno" | "quebra" | "contagem" | "outro";
 
 export function buscarProdutoBalcao(codigo: string): Promise<ProdutoEstoque | null> {
   return rpc("buscarProdutoBalcao", codigo);
@@ -29,12 +30,13 @@ export function emitirNfce(vendaId: string): Promise<DocumentoFiscal> {
 export function listarEstoque(): Promise<ProdutoEstoque[]> {
   return rpc("listarEstoque");
 }
-export function listarMovimentosEstoque(): Promise<{ id: string; criadoEm: string; produtoNome: string; tipo: string; quantidade: number; observacao: string; usuarioNome: string }[]> {
+export function listarMovimentosEstoque(): Promise<{ id: string; criadoEm: string; produtoNome: string; tipo: string; motivo: MotivoMovimentoEstoque; quantidade: number; observacao: string; usuarioNome: string }[]> {
   return rpc("listarMovimentosEstoque");
 }
 export function movimentarEstoque(dados: {
   produtoId: string;
   tipo: "entrada" | "saida" | "ajuste";
+  motivo: MotivoMovimentoEstoque;
   quantidade: number;
   observacao?: string;
 }): Promise<void> {

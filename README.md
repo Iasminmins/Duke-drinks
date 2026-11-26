@@ -64,6 +64,8 @@ npm run dev
   `node db/migrar.mjs db/migrations/003_balcao_estoque_nfce.sql`
 - `db/migrations/004_codigos_internos.sql`: sequência de códigos internos Code 39. Aplicar depois da 003:
   `node db/migrar.mjs db/migrations/004_codigos_internos.sql`
+- `db/migrations/005_motivos_movimento_estoque.sql`: motivo estruturado no histórico de estoque, depois da 004:
+  `node db/migrar.mjs db/migrations/005_motivos_movimento_estoque.sql`
 
 ### Balcão, estoque e NFC-e
 
