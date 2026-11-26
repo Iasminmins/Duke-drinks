@@ -170,6 +170,33 @@ export async function getEstabelecimento(): Promise<Estabelecimento> {
   return e;
 }
 
+export interface EstadoFiscal {
+  habilitado: boolean;
+  estado: "pendente" | "homologacao" | "producao";
+  ambiente: "homologacao" | "producao";
+  ausentes: string[];
+  tokenConfigurado: boolean;
+}
+
+/** Exibe prontidão fiscal sem retornar nem registrar o segredo da Focus. */
+export async function getEstadoFiscal(ctx: Ctx): Promise<EstadoFiscal> {
+  exigir(ctx, "admin", "caixa");
+  const est = await um<{ modulos: Estabelecimento["modulos"]; fiscalCnpj: string; fiscalIe: string; fiscalUf: string; fiscalCodigoMunicipio: string; fiscalRegime: string; fiscalAmbiente: "homologacao" | "producao" }>(
+    `select modulos, fiscal_cnpj as "fiscalCnpj", fiscal_ie as "fiscalIe", fiscal_uf as "fiscalUf", fiscal_codigo_municipio as "fiscalCodigoMunicipio", fiscal_regime as "fiscalRegime", fiscal_ambiente as "fiscalAmbiente" from estabelecimento limit 1`,
+  );
+  const ausentes: string[] = [];
+  if (!est?.fiscalCnpj) ausentes.push("CNPJ");
+  if (!est?.fiscalIe) ausentes.push("Inscrição estadual");
+  if (!est?.fiscalUf) ausentes.push("UF");
+  if (!est?.fiscalCodigoMunicipio) ausentes.push("Código IBGE do município");
+  if (!est?.fiscalRegime) ausentes.push("Regime tributário");
+  const tokenConfigurado = !!process.env.FOCUS_NFE_TOKEN;
+  if (!tokenConfigurado) ausentes.push("Credencial Focus NFe no servidor");
+  const ambiente = est?.fiscalAmbiente === "producao" ? "producao" : "homologacao";
+  return { habilitado: !!est?.modulos?.nfce, ambiente, ausentes, tokenConfigurado,
+    estado: ausentes.length ? "pendente" : ambiente };
+}
+
 const COLUNAS_EST: Record<string, string> = {
   nome: "nome",
   logoUrl: "logo_url",
@@ -261,6 +288,14 @@ export interface PrimeirosPassos {
   usuarios: number;
   temLogo: boolean;
   pedidos: number;
+  pedidosQr: number;
+  tipoNegocio: string;
+  modulos: { balcao: boolean; estoque: boolean; nfce: boolean };
+  comCodigoBarras: number;
+  comEstoque: number;
+  vendasBalcao: number;
+  setores: number;
+  comandasFechadas: number;
 }
 
 export async function getPrimeirosPassos(ctx: Ctx): Promise<PrimeirosPassos> {
@@ -269,9 +304,18 @@ export async function getPrimeirosPassos(ctx: Ctx): Promise<PrimeirosPassos> {
     `select (select count(*)::int from produtos where ativo) as produtos,
             (select count(*)::int from usuarios where ativo) as usuarios,
             coalesce((select logo_url is not null from estabelecimento limit 1), false) as "temLogo",
-            (select count(*)::int from pedidos) as pedidos`,
+            (select count(*)::int from pedidos) as pedidos,
+            (select count(*)::int from pedidos where origem='cliente') as "pedidosQr",
+            $1::text as "tipoNegocio",
+            coalesce((select modulos from estabelecimento limit 1), '{"balcao":false,"estoque":false,"nfce":false}'::jsonb) as modulos,
+            (select count(*)::int from produtos where ativo and codigo_barras is not null and codigo_barras <> '') as "comCodigoBarras",
+            (select count(*)::int from produtos where ativo and controla_estoque) as "comEstoque",
+            (select count(*)::int from vendas_balcao where status='concluida') as "vendasBalcao",
+            (select count(*)::int from setores) as setores,
+            (select count(*)::int from comandas where status='fechada') as "comandasFechadas"`,
+    [ctx.tenant?.tipo ?? "outro"],
   );
-  return r ?? { produtos: 0, usuarios: 0, temLogo: false, pedidos: 0 };
+  return r ?? { produtos: 0, usuarios: 0, temLogo: false, pedidos: 0, pedidosQr: 0, tipoNegocio: "outro", modulos: { balcao: false, estoque: false, nfce: false }, comCodigoBarras: 0, comEstoque: 0, vendasBalcao: 0, setores: 0, comandasFechadas: 0 };
 }
 
 // ------------------------------------------------------------------ assinatura

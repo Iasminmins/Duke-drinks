@@ -1,7 +1,7 @@
 import type { DocumentoFiscal, FormaPagamento, Produto, VendaBalcao } from "@/types";
 import { rpc } from "./_rpc";
 
-export interface ProdutoEstoque extends Pick<Produto, "id" | "nome" | "preco" | "codigoBarras" | "controlaEstoque" | "estoque" | "estoqueMinimo" | "unidade"> {}
+export interface ProdutoEstoque extends Pick<Produto, "id" | "nome" | "preco" | "codigoBarras" | "controlaEstoque" | "estoque" | "estoqueMinimo" | "unidade" | "esgotado"> {}
 export type MotivoMovimentoEstoque = "saldo_inicial" | "compra" | "devolucao" | "venda_balcao" | "perda" | "vencimento" | "consumo_interno" | "quebra" | "contagem" | "outro";
 
 export function buscarProdutoBalcao(codigo: string): Promise<ProdutoEstoque | null> {
@@ -21,6 +21,7 @@ export function registrarVendaBalcao(dados: {
   clienteNome?: string;
   clienteDocumento?: string;
   emitirNfce: boolean;
+  requestKey: string;
 }): Promise<VendaBalcao> {
   return rpc("registrarVendaBalcao", dados);
 }

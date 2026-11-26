@@ -80,10 +80,10 @@ export function ClienteDialog({
           if (pronto && !loading) enviar();
         }}
       >
-        <Field label="Nome do cliente" htmlFor="cmd-nome">
+        <Field label="Nome do cliente" htmlFor="cmd-nome" erro={nome.length > 0 && nome.trim().length < 2 ? "Informe pelo menos 2 caracteres" : undefined}>
           <Input id="cmd-nome" autoFocus autoComplete="off" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex.: Carlos" />
         </Field>
-        <Field label="Celular (com DDD)" htmlFor="cmd-cel">
+        <Field label="Celular (com DDD)" htmlFor="cmd-cel" dica="Obrigatório para validar o acesso ao QR da comanda e proteger os pedidos do cliente." erro={celular.replace(/\D/g, "").length > 0 && celular.replace(/\D/g, "").length < 10 ? "Informe DDD e telefone com pelo menos 10 dígitos" : undefined}>
           <Input
             id="cmd-cel"
             type="tel"

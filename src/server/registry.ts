@@ -27,6 +27,7 @@ export const REGISTRO: Record<string, H> = {
   salvarUsuario: acesso.salvarUsuario,
   alternarUsuarioAtivo: acesso.alternarUsuarioAtivo,
   getEstabelecimento: acesso.getEstabelecimento,
+  getEstadoFiscal: acesso.getEstadoFiscal,
   salvarEstabelecimento: acesso.salvarEstabelecimento,
   resetarDemo: acesso.resetarDemo,
   // cardápio

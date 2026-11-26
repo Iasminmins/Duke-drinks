@@ -7,8 +7,8 @@
  *     duke.seuapp.com.br                 -> negócio "duke"
  *   localhost:3000 em desenvolvimento: use  duke.localhost:3000  (o Chrome resolve sozinho)
  *
- * Qualquer outro endereço (URL da Vercel, domínio antigo) usa DEFAULT_TENANT_SLUG, se existir.
- * Assim o Duke continua funcionando no endereço atual enquanto o domínio novo não está pronto.
+ * Endereços desconhecidos não assumem uma loja por padrão: eles exibem a entrada compartilhada do Comandou.
+ * DEFAULT_TENANT_SLUG só é aceito em desenvolvimento local.
  */
 export type Destino = { tipo: "plataforma" } | { tipo: "tenant"; slug: string };
 
@@ -32,7 +32,8 @@ export function resolverHost(hostBruto: string | null | undefined): Destino {
     if (sub && !sub.includes(".") && !RESERVADOS.has(sub)) return { tipo: "tenant", slug: sub };
     return { tipo: "plataforma" };
   }
-  const padrao = process.env.DEFAULT_TENANT_SLUG?.trim().toLowerCase();
+  const local = host === "localhost" || host.startsWith("localhost:") || host === "127.0.0.1" || host.startsWith("127.0.0.1:");
+  const padrao = local ? process.env.DEFAULT_TENANT_SLUG?.trim().toLowerCase() : undefined;
   return padrao ? { tipo: "tenant", slug: padrao } : { tipo: "plataforma" };
 }
 

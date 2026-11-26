@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { PageHeader } from "@/components/layout/page-header";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { listarEstoque, listarMovimentosEstoque, movimentarEstoque, type MotivoMovimentoEstoque } from "@/services/balcao.service";
 import { getEstabelecimento } from "@/services/config.service";
 import { formatDataHora } from "@/lib/format";
 import { mensagemErro } from "@/lib/errors";
+import Link from "next/link";
+import { useSession } from "@/stores/session";
 
 const MOTIVOS: Record<MotivoMovimentoEstoque, string> = {
   saldo_inicial: "Saldo inicial",
@@ -34,6 +36,7 @@ const MOTIVOS_POR_TIPO: Record<"entrada" | "saida" | "ajuste", MotivoMovimentoEs
 
 export default function EstoquePage() {
   const qc = useQueryClient();
+  const papel = useSession((s) => s.usuario?.papel);
   const produtosQ = useQuery({ queryKey: ["estoque"], queryFn: listarEstoque });
   const estQ = useQuery({ queryKey: ["estabelecimento"], queryFn: getEstabelecimento });
   const movsQ = useQuery({ queryKey: ["movimentos-estoque"], queryFn: listarMovimentosEstoque });
@@ -59,10 +62,13 @@ export default function EstoquePage() {
   });
 
   if (estQ.data && !estQ.data.modulos?.estoque) return <div className="mx-auto max-w-xl pt-10"><EmptyState titulo="Estoque desativado" descricao="Ative Gestão de estoque em Admin → Configurações → Recursos deste estabelecimento." /></div>;
+  if (produtosQ.isError) return <ErrorState onRetry={() => produtosQ.refetch()} />;
   return <div>
     <PageHeader descricao="Acompanhe saldos, alertas de reposição e registre entradas, saídas ou contagens." />
-    <Card className="mb-4 flex items-center gap-2 p-3"><Search className="h-4 w-4 text-subtle" /><Input placeholder="Buscar produto ou código" value={busca} onChange={(e) => setBusca(e.target.value)} /></Card>
-    <Card className="overflow-hidden">
+    <Card className="mb-4 flex items-center gap-2 p-3"><Search className="h-4 w-4 text-subtle" /><Input aria-label="Buscar produto ou código" placeholder="Buscar produto ou código" value={busca} onChange={(e) => setBusca(e.target.value)} />{busca && <Button variant="secondary" size="sm" onClick={() => setBusca("")}>Limpar busca</Button>}</Card>
+    {produtosQ.data?.length === 0 ? <Card className="p-6"><EmptyState titulo="Cadastre um produto para começar a controlar o estoque" descricao="Depois, ative o controle de estoque no cadastro e informe o saldo inicial." />{papel === "admin" && <div className="mt-4 text-center"><Link href="/admin/produtos" className="inline-flex h-10 items-center rounded-[10px] bg-gold px-4 text-sm font-semibold text-bg">Cadastrar produto</Link></div>}</Card> : null}
+    {produtosQ.data && produtosQ.data.length > 0 && rows.length === 0 && <Card className="mb-4 p-5 text-center text-sm text-muted">Nenhum produto corresponde à busca. <button className="ml-2 font-semibold text-gold underline" onClick={() => setBusca("")}>Limpar busca</button></Card>}
+    {!!produtosQ.data?.length && !!rows.length && <Card className="overflow-hidden">
       <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm">
         <thead><tr className="border-b border-line text-left text-xs uppercase text-subtle"><th className="px-4 py-3">Produto</th><th className="px-4 py-3">Saldo</th><th className="px-4 py-3">Mínimo</th><th className="px-4 py-3">Movimentar</th><th className="px-4 py-3">Observação</th><th className="px-4 py-3" /></tr></thead>
         <tbody className="divide-y divide-line">{rows.map((p) => <tr key={p.id} className={(p.estoque ?? 0) <= (p.estoqueMinimo ?? 0) ? "bg-warn-soft/30" : ""}>
@@ -82,8 +88,7 @@ export default function EstoquePage() {
           <td className="px-4 py-3"><Button size="sm" disabled={!Number(qtd[p.id]) || Number(qtd[p.id]) <= 0} loading={m.isPending} onClick={() => m.mutate(p.id)}>{(tipo[p.id] ?? "entrada") === "saida" ? <ArrowUpFromLine className="h-4 w-4" /> : (tipo[p.id] ?? "entrada") === "ajuste" ? <Boxes className="h-4 w-4" /> : <ArrowDownToLine className="h-4 w-4" />} Salvar</Button></td>
         </tr>)}</tbody>
       </table></div>
-      {produtosQ.data && !rows.length && <p className="p-6 text-center text-sm text-muted">Nenhum produto corresponde à busca.</p>}
-    </Card>
+    </Card>}
     <div className="mt-8">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div><h2 className="font-display text-2xl">Movimentações recentes</h2><p className="text-xs text-subtle">Últimas 100 movimentações</p></div>
@@ -95,6 +100,7 @@ export default function EstoquePage() {
           <Select aria-label="Filtrar por motivo" value={motivoHistorico} onChange={(e) => setMotivoHistorico(e.target.value)} className="w-44">
             <option value="">Todos os motivos</option>{Object.entries(MOTIVOS).map(([chave, rotulo]) => <option key={chave} value={chave}>{rotulo}</option>)}
           </Select>
+          {(buscaHistorico || tipoHistorico || motivoHistorico) && <Button variant="secondary" size="sm" onClick={() => { setBuscaHistorico(""); setTipoHistorico(""); setMotivoHistorico(""); }}>Limpar filtros</Button>}
         </div>
       </div>
       <Card className="divide-y divide-line">

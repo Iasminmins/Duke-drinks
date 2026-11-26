@@ -2,7 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ClipboardCheck, ClipboardList, Receipt, TrendingUp, type LucideIcon } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Receipt, TrendingUp, ScanBarcode, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/ui/empty-state";
@@ -11,9 +12,11 @@ import { FORMA_LABEL } from "@/lib/labels";
 import { formatBRL } from "@/lib/format";
 import { Suspense } from "react";
 import { PrimeirosPassos } from "@/components/admin/primeiros-passos";
+import { getEstabelecimento } from "@/services/config.service";
 
 export default function Dashboard() {
   const q = useQuery({ queryKey: ["dashboard"], queryFn: getResumoDashboard });
+  const estQ = useQuery({ queryKey: ["estabelecimento"], queryFn: getEstabelecimento });
 
   if (q.isError) return <ErrorState onRetry={() => q.refetch()} />;
   const d = q.data;
@@ -25,6 +28,7 @@ export default function Dashboard() {
       <Suspense>
         <PrimeirosPassos />
       </Suspense>
+      {estQ.data?.modulos?.balcao && <Link href="/caixa/balcao" className="flex min-h-14 items-center gap-3 rounded-card border border-gold/50 bg-gold-soft px-4 py-3 font-semibold text-cream transition-colors hover:bg-gold/20"><ScanBarcode className="h-5 w-5 shrink-0 text-gold" /><span className="flex-1">Abrir Caixa de balcão</span><span className="text-sm text-muted">Bipar produto e registrar venda →</span></Link>}
       <p className="text-sm text-muted">Indicadores das últimas 24 horas (cobre o expediente que vira a meia-noite).</p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={TrendingUp} label="Faturamento" valor={d && formatBRL(d.faturamentoDia)} destaque />

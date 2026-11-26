@@ -1,6 +1,7 @@
 import "server-only";
 import { FORMAS } from "@/lib/labels";
 import { round2 } from "@/lib/utils";
+import { hashOperacao } from "@/lib/operacao-segura";
 import { ServiceError } from "@/services/_base";
 import type { NovoPagamento, ResumoCaixa } from "@/services/caixa.service";
 import type { Caixa, Comanda, FormaPagamento, Pagamento } from "@/types";
@@ -41,12 +42,24 @@ export async function registrarPagamento(
 ): Promise<{ pagamento: Pagamento; comandaFechada: boolean }> {
   const sessao = exigir(ctx, "caixa");
   if (!FORMAS.includes(dados?.forma)) throw new ServiceError("Forma de pagamento inválida");
+  const requestKey = String(dados.requestKey ?? "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey)) throw new ServiceError("Atualize a tela do caixa para registrar o pagamento com segurança.");
+  const valorSolicitado = round2(Number(dados.valor));
+  const valorRecebidoSolicitado = dados.forma === "dinheiro" ? round2(Number(dados.valorRecebido ?? valorSolicitado)) : null;
+  const requestHash = hashOperacao({ comandaId: dados.comandaId, forma: dados.forma, valor: valorSolicitado, valorRecebido: valorRecebidoSolicitado });
   return tx(async (c) => {
+    const anterior = await pagamentoPorChave(c, requestKey, requestHash);
+    if (anterior) return anterior;
     const caixa = await um<{ id: string }>(`select id from caixas where fechado_em is null limit 1`, [], c);
     if (!caixa) throw new ServiceError("Abra o caixa antes de registrar pagamentos", "PROIBIDO");
+    // Serializa as tentativas entre caixas e reconhece a mesma requisição antes de calcular o restante.
+    const repetido = await pagamentoPorChave(c, requestKey, requestHash);
+    if (repetido) return repetido;
     // trava a comanda: dois caixas pagando ao mesmo tempo não podem passar do total
     const cm = await um<Comanda>(`${COMANDA_SQL} where c.id = $1 for update of c`, [String(dados.comandaId)], c);
     if (!cm) throw new ServiceError("Comanda não encontrada", "NAO_ENCONTRADO");
+    const repetidoComanda = await pagamentoPorChave(c, requestKey, requestHash);
+    if (repetidoComanda) return repetidoComanda;
     if (cm.status === "fechada" || cm.status === "cancelada") throw new ServiceError("Comanda já está fechada", "PROIBIDO");
 
     const { totais } = (await detalhar(c, [cm]))[0];
@@ -62,9 +75,9 @@ export async function registrarPagamento(
       troco = round2(recebido - valor);
     }
     const pagamento = (await um<Pagamento>(
-      `insert into pagamentos (comanda_id, caixa_id, forma, valor, valor_recebido, troco, usuario_id)
-       values ($1,$2,$3,$4,$5,$6,$7) returning ${PAGAMENTO_RET}`,
-      [cm.id, caixa.id, dados.forma, valor, recebido, troco, sessao.uid],
+      `insert into pagamentos (comanda_id, caixa_id, forma, valor, valor_recebido, troco, usuario_id, request_key, request_hash)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning ${PAGAMENTO_RET}`,
+      [cm.id, caixa.id, dados.forma, valor, recebido, troco, sessao.uid, requestKey, requestHash],
       c,
     ))!;
 
@@ -77,6 +90,20 @@ export async function registrarPagamento(
     }
     return { pagamento, comandaFechada: fechou };
   });
+}
+
+async function pagamentoPorChave(c: Q, chave: string, hash: string): Promise<{ pagamento: Pagamento; comandaFechada: boolean } | null> {
+  const registro = await um<{ id: string; requestHash: string | null; comandaId: string }>(
+    `select id, request_hash as "requestHash", comanda_id as "comandaId" from pagamentos where request_key=$1`, [chave], c,
+  );
+  if (!registro) return null;
+  if (registro.requestHash !== hash) throw new ServiceError("Esta tentativa já registrou outro pagamento. Confira a comanda antes de tentar novamente.", "CONFLITO");
+  const [pagamento, status] = await Promise.all([
+    um<Pagamento>(`select ${PAGAMENTO_RET} from pagamentos where id=$1`, [registro.id], c),
+    um<{ status: string }>(`select status from comandas where id=$1`, [registro.comandaId], c),
+  ]);
+  if (!pagamento) return null;
+  return { pagamento, comandaFechada: status?.status === "fechada" };
 }
 
 /** estorno: comanda fechada volta para "aguardando pagamento" */

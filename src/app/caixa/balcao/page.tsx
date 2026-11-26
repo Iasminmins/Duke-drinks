@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
-import { getEstabelecimento } from "@/services/config.service";
+import { getEstabelecimento, getEstadoFiscal } from "@/services/config.service";
 import { emitirNfce, listarProdutosBalcao, listarVendasBalcao, registrarVendaBalcao, type ProdutoEstoque } from "@/services/balcao.service";
 import { FORMA_LABEL, FORMAS } from "@/lib/labels";
 import { formatBRL } from "@/lib/format";
@@ -34,6 +34,7 @@ export default function BalcaoPage() {
   const qc = useQueryClient();
   const campo = useRef<HTMLInputElement>(null);
   const estQ = useQuery({ queryKey: ["estabelecimento"], queryFn: getEstabelecimento });
+  const fiscalQ = useQuery({ queryKey: ["estado-fiscal"], queryFn: getEstadoFiscal, enabled: !!estQ.data?.modulos?.nfce });
   const produtosQ = useQuery({ queryKey: ["produtos-balcao"], queryFn: listarProdutosBalcao });
   const vendasQ = useQuery({ queryKey: ["vendas-balcao"], queryFn: listarVendasBalcao });
   const [termo, setTermo] = useState("");
@@ -44,6 +45,8 @@ export default function BalcaoPage() {
   const [emitirFiscal, setEmitirFiscal] = useState(false);
   const [clienteNome, setClienteNome] = useState("");
   const [clienteDocumento, setClienteDocumento] = useState("");
+  const [errosPeso, setErrosPeso] = useState<Record<string, string>>({});
+  const chaveVenda = useRef<string | null>(null);
   const [vendaParaImprimir, setVendaParaImprimir] = useState<VendaBalcao | null>(null);
   const totalBruto = round2(carrinho.reduce((s, l) => s + l.produto.preco * l.quantidade, 0));
   const total = round2(totalBruto - Math.min(Math.max(desconto, 0), totalBruto));
@@ -56,7 +59,7 @@ export default function BalcaoPage() {
   useEffect(() => {
     if (!vendaParaImprimir) return;
     const timer = window.setTimeout(() => window.print(), 150);
-    const limpar = () => setVendaParaImprimir(null);
+    const limpar = () => { setVendaParaImprimir(null); window.setTimeout(() => campo.current?.focus(), 100); };
     window.addEventListener("afterprint", limpar, { once: true });
     return () => {
       window.clearTimeout(timer);
@@ -65,6 +68,12 @@ export default function BalcaoPage() {
   }, [vendaParaImprimir]);
 
   function adicionar(p: ProdutoEstoque) {
+    if (p.esgotado) {
+      toast.error(`${p.nome} está indisponível para venda.`);
+      setTermo("");
+      campo.current?.focus();
+      return;
+    }
     const porPeso = p.unidade?.toLowerCase() === "kg";
     setCarrinho((rows) => {
       const atual = rows.find((x) => x.produto.id === p.id);
@@ -91,7 +100,11 @@ export default function BalcaoPage() {
 
   function alterarPeso(id: string, entrada: string) {
     const q = quantidadeDigitada(entrada);
-    if (q === null) return;
+    if (q === null) {
+      setErrosPeso((x) => ({ ...x, [id]: "Informe um peso válido com até três casas decimais." }));
+      return;
+    }
+    setErrosPeso((x) => ({ ...x, [id]: "" }));
     const linha = carrinho.find((x) => x.produto.id === id);
     if (!linha) return;
     if (linha.produto.controlaEstoque && q > (linha.produto.estoque ?? 0)) return toast.error(`Saldo disponível: ${linha.produto.estoque} kg.`);
@@ -100,8 +113,17 @@ export default function BalcaoPage() {
 
   const vender = useMutation({
     mutationFn: async () => {
+      if (!chaveVenda.current) {
+        const storageKey = `comandou:tentativa-venda:${window.location.hostname}`;
+        try {
+          const salvo = localStorage.getItem(storageKey);
+          const id = salvo ? JSON.parse(salvo)?.requestKey : null;
+          chaveVenda.current = typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id) ? id : crypto.randomUUID();
+          localStorage.setItem(storageKey, JSON.stringify({ requestKey: chaveVenda.current }));
+        } catch { chaveVenda.current = crypto.randomUUID(); }
+      }
       const venda = await registrarVendaBalcao({ itens: carrinho.map((l) => ({ produtoId: l.produto.id, quantidade: l.quantidade })), forma,
-        valorRecebido: forma === "dinheiro" ? recebido : undefined, desconto, emitirNfce: emitirFiscal, clienteNome, clienteDocumento });
+        valorRecebido: forma === "dinheiro" ? recebido : undefined, desconto, emitirNfce: emitirFiscal, clienteNome, clienteDocumento, requestKey: chaveVenda.current });
       let fiscalError: string | null = null;
       if (venda.fiscal) {
         try { venda.fiscal = await emitirNfce(venda.id); }
@@ -112,11 +134,13 @@ export default function BalcaoPage() {
     onSuccess: ({ venda, fiscalError }) => {
       setVendaParaImprimir(venda);
       setCarrinho([]); setDesconto(0); setRecebido(0); setEmitirFiscal(false); setClienteNome(""); setClienteDocumento("");
+      try { localStorage.removeItem(`comandou:tentativa-venda:${window.location.hostname}`); } catch { /* armazenamento opcional */ }
+      chaveVenda.current = null;
       void qc.invalidateQueries({ queryKey: ["produtos-balcao"] });
       void qc.invalidateQueries({ queryKey: ["vendas-balcao"] });
       void qc.invalidateQueries({ queryKey: ["resumo-caixa"] });
       toast.success(`Venda #${venda.numero} registrada`);
-      if (fiscalError) toast.error(`Venda salva. NFC-e pendente: ${fiscalError}`);
+      if (fiscalError) toast.error("Venda salva. NFC-e pendente: avise o administrador para conferir a configuração fiscal e tente novamente.");
       else if (venda.fiscal?.status === "autorizado") toast.success(`NFC-e ${venda.fiscal.numero ?? "autorizada"}`);
     },
     onError: (e) => toast.error(mensagemErro(e)),
@@ -124,13 +148,13 @@ export default function BalcaoPage() {
   const retryFiscal = useMutation({
     mutationFn: emitirNfce,
     onSuccess: async () => { toast.success("NFC-e atualizada"); await qc.invalidateQueries({ queryKey: ["vendas-balcao"] }); },
-    onError: (e) => toast.error(mensagemErro(e)),
+    onError: () => toast.error("Não foi possível atualizar a NFC-e. A venda continua salva; confira a configuração com o administrador e tente novamente."),
   });
 
   if (estQ.data && !estQ.data.modulos?.balcao) return <div className="mx-auto max-w-xl pt-10"><EmptyState titulo="Balcão desativado" descricao="Um administrador pode ativar Caixa de balcão em Admin → Configurações → Recursos deste estabelecimento." /></div>;
 
   return <div>
-    <PageHeader descricao="Leia o código de barras com um leitor USB ou pesquise o produto pelo nome." />
+      <PageHeader descricao="Bipe o código de barras ou pesquise o produto. O pagamento e a baixa de estoque são registrados juntos." acoes={<a href="/caixa/balcao" className="sr-only">Caixa de balcão</a>} />
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="space-y-4">
         <Card className="p-3">
@@ -144,12 +168,13 @@ export default function BalcaoPage() {
                 const encontrado = (produtosQ.data ?? []).find((p) => cod && p.codigoBarras === cod);
                 if (encontrado) adicionar(encontrado);
                 else if (sugestoes.length === 1) adicionar(sugestoes[0]);
-                else toast.error("Produto não encontrado. Cadastre o código de barras em Admin → Produtos.");
+                else if (sugestoes.length > 1) toast.error("Mais de um produto encontrado. Selecione o item correto na lista.");
+                else toast.error("Código ou produto não encontrado. Cadastre o código em Admin → Produtos.");
               }} className="pl-11" />
           </div>
           {termo && <div className="mt-2 divide-y divide-line rounded-lg border border-line bg-bg-soft">
-            {sugestoes.map((p) => <button key={p.id} onClick={() => adicionar(p)} className="flex w-full items-center gap-3 p-3 text-left hover:bg-surface">
-              <span className="min-w-0 flex-1"><b className="block truncate text-sm">{p.nome}</b><small className="text-subtle">{p.codigoBarras || "Sem código"} · {p.estoque ?? 0} {p.unidade ?? "un"} em estoque</small></span><b>{formatBRL(p.preco)} / {p.unidade?.toLowerCase() === "kg" ? "kg" : p.unidade ?? "un"}</b>
+            {sugestoes.map((p) => <button key={p.id} disabled={p.esgotado} onClick={() => adicionar(p)} className="flex w-full items-center gap-3 p-3 text-left hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60">
+              <span className="min-w-0 flex-1"><b className="block truncate text-sm">{p.nome}{p.esgotado && " · Indisponível"}</b><small className="text-subtle">{p.codigoBarras || "Sem código"} · {p.estoque ?? 0} {p.unidade ?? "un"} em estoque</small></span><b>{formatBRL(p.preco)} / {p.unidade?.toLowerCase() === "kg" ? "kg" : p.unidade ?? "un"}</b>
             </button>)}
             {!sugestoes.length && <p className="p-3 text-sm text-muted">Nenhum produto encontrado.</p>}
           </div>}
@@ -166,7 +191,7 @@ export default function BalcaoPage() {
                 <div className="flex items-center gap-1">
                   <Button size="icon-sm" variant="secondary" aria-label={`Diminuir ${porPeso ? "100 gramas de " : "uma unidade de "}${p.nome}`} onClick={() => alterar(p.id, Math.round((q - incremento) * 1000) / 1000)}><Minus className="h-4 w-4" /></Button>
                   <label className="sr-only" htmlFor={`qtd-${p.id}`}>{porPeso ? `Peso em kg de ${p.nome}` : `Quantidade de ${p.nome}`}</label>
-                  <input id={`qtd-${p.id}`} aria-label={porPeso ? `Peso em kg de ${p.nome}` : `Quantidade de ${p.nome}`} inputMode={porPeso ? "decimal" : "numeric"} type="text"
+                  <input id={`qtd-${p.id}`} aria-label={porPeso ? `Peso em kg de ${p.nome}` : `Quantidade de ${p.nome}`} aria-invalid={!!errosPeso[p.id]} inputMode={porPeso ? "decimal" : "numeric"} type="text"
                     placeholder={porPeso ? "0,000" : "1"} value={porPeso ? (entradaPeso ?? (q ? peso(q) : "")) : q}
                     onChange={(e) => {
                       if (porPeso) alterarPeso(p.id, e.target.value);
@@ -178,6 +203,7 @@ export default function BalcaoPage() {
                   <Button size="icon-sm" variant="secondary" aria-label={`Aumentar ${porPeso ? "100 gramas de " : "uma unidade de "}${p.nome}`} onClick={() => alterar(p.id, Math.round((q + incremento) * 1000) / 1000)}><Plus className="h-4 w-4" /></Button>
                   {porPeso && <span className="text-xs text-muted">kg</span>}
                 </div>
+                {errosPeso[p.id] && <p className="w-full text-right text-xs text-red" role="alert">{errosPeso[p.id]}</p>}
                 <b className="w-24 text-right tabular-nums">{formatBRL(p.preco * q)}</b><Button size="icon-sm" variant="ghost" aria-label={`Remover ${p.nome}`} onClick={() => alterar(p.id, -1)}><Trash2 className="h-4 w-4" /></Button>
               </li>;
             })}</ul>}
@@ -193,10 +219,18 @@ export default function BalcaoPage() {
           {forma === "dinheiro" && <Field label="Valor recebido" htmlFor="venda-recebido"><Input id="venda-recebido" type="number" min={total} step="0.01" value={recebido} onChange={(e) => setRecebido(Number(e.target.value))} /></Field>}
           {forma === "dinheiro" && recebido > total && <div className="flex justify-between rounded-lg bg-surface p-3 text-sm"><span>Troco</span><b>{formatBRL(recebido - total)}</b></div>}
           {estQ.data?.modulos?.nfce && <label className="flex items-center gap-3 rounded-lg border border-line p-3 text-sm"><input type="checkbox" checked={emitirFiscal} onChange={(e) => setEmitirFiscal(e.target.checked)} /> Emitir NFC-e nesta venda</label>}
-          {emitirFiscal && <div className="space-y-3 rounded-lg border border-line p-3"><p className="text-xs text-muted">Identificação do consumidor (opcional)</p><Input placeholder="Nome do consumidor" value={clienteNome} onChange={(e) => setClienteNome(e.target.value)} /><Input placeholder="CPF ou CNPJ" inputMode="numeric" value={clienteDocumento} onChange={(e) => setClienteDocumento(e.target.value.replace(/\D/g, "").slice(0, 14))} /></div>}
+          {emitirFiscal && <div className="space-y-3 rounded-lg border border-line p-3"><p className="text-xs text-muted">Identificação do consumidor (opcional)</p><Input placeholder="Nome do consumidor" value={clienteNome} onChange={(e) => setClienteNome(e.target.value)} /><Input placeholder="CPF ou CNPJ" inputMode="numeric" value={clienteDocumento} onChange={(e) => setClienteDocumento(e.target.value.replace(/\D/g, "").slice(0, 14))} />
+            {fiscalQ.isLoading ? <p className="text-xs text-muted">Verificando configuração fiscal…</p> : fiscalQ.data?.ausentes.length ? <p className="text-sm text-warn">Configuração fiscal pendente. Avise o administrador: falta {fiscalQ.data.ausentes.join(", ")}. A venda será salva e a NFC-e ficará pendente.</p> : <p className="text-xs text-muted">Ambiente: {fiscalQ.data?.ambiente === "producao" ? "Produção" : "Homologação"}. Se a Focus estiver indisponível, a venda fica salva e você pode tentar emitir depois.</p>}
+          </div>}
           <Button block size="lg" disabled={!carrinho.length || total <= 0 || (forma === "dinheiro" && recebido < total)} loading={vender.isPending} onClick={() => vender.mutate()}>
-            Registrar venda · {formatBRL(total)}
+            {vender.isError ? "Tentar novamente · mesma venda" : "Registrar venda"} · {formatBRL(total)}
           </Button>
+          {vender.isError && <button className="w-full text-xs text-muted underline" onClick={() => {
+            if (!window.confirm("Confira Vendas recentes antes de continuar. Só inicie outra venda se a tentativa anterior não estiver registrada. Deseja limpar a tentativa pendente?")) return;
+            chaveVenda.current = null;
+            try { localStorage.removeItem(`comandou:tentativa-venda:${window.location.hostname}`); } catch { /* armazenamento opcional */ }
+            vender.reset();
+          }}>Já conferi Vendas recentes · limpar tentativa pendente</button>}
           <p className="text-center text-xs text-subtle">A baixa do estoque e o lançamento no caixa são feitos junto com a venda.</p>
         </div>
       </Card>

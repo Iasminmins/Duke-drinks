@@ -16,7 +16,7 @@ import { adicionarCartoes, listarCartoes, removerCartao, type Cartao } from "@/s
 import { mensagemErro } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
-/** cartões de comanda numerados: os números físicos que o salão usa */
+/** Cadastro dos cartões físicos com número e QR fixo; as comandas abertas ficam em Caixa → Comandas. */
 export default function ComandasAdmin() {
   const q = useQuery({ queryKey: ["cartoes"], queryFn: listarCartoes });
   const cartoes = q.data ?? [];
@@ -32,7 +32,7 @@ export default function ComandasAdmin() {
   const add = useMutation({
     mutationFn: () => adicionarCartoes(Number(faixa!.de), Number(faixa!.ate)),
     onSuccess: (r) => {
-      toast.success(r.adicionados ? `${r.adicionados} comandas cadastradas` : "Esses números já estavam cadastrados");
+      toast.success(r.adicionados ? `${r.adicionados} cartões cadastrados` : "Esses números já estavam cadastrados");
       setFaixa(null);
     },
     onError: (e) => toast.error(mensagemErro(e)),
@@ -40,7 +40,7 @@ export default function ComandasAdmin() {
   const del = useMutation({
     mutationFn: (n: number) => removerCartao(n),
     onSuccess: () => {
-      toast.success("Comanda removida");
+      toast.success("Cartão removido");
       setApagar(null);
     },
     onError: (e) => {
@@ -59,7 +59,7 @@ export default function ComandasAdmin() {
         descricao={
           cartoes.length
             ? `${cartoes.length} comandas cadastradas · ${emUso} em uso agora. Cada cartão tem um QR fixo: o garçom abre a comanda no número e entrega o cartão ao cliente.`
-            : undefined
+            : "Cadastre os números físicos usados pelo salão. As comandas abertas e o histórico ficam em Comandas."
         }
         acoes={
           cartoes.length > 0 && (
@@ -71,8 +71,8 @@ export default function ComandasAdmin() {
               >
                 <Printer className="h-4 w-4" /> Imprimir cards com QR
               </Link>
-              <Button onClick={novaFaixa}>
-                <Plus className="h-4 w-4" /> Adicionar comandas
+                <Button onClick={novaFaixa}>
+                <Plus className="h-4 w-4" /> Adicionar cartões
               </Button>
             </>
           )
@@ -87,7 +87,7 @@ export default function ComandasAdmin() {
 
       {!q.isLoading && cartoes.length === 0 && (
         <Card className="mx-auto max-w-xl p-6 text-center">
-          <p className="font-display text-3xl">Cadastre os números das suas comandas</p>
+          <p className="font-display text-3xl">Cadastre os números dos cartões</p>
           <p className="mt-2 text-sm text-muted">
             Se o seu salão usa cartões de comanda numerados, cadastre os números aqui (por exemplo, de 1 a 100). O garçom vai
             escolher um deles ao abrir a comanda do cliente.

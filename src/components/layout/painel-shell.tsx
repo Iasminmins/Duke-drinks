@@ -8,6 +8,9 @@ import { Logo } from "@/components/brand/logo";
 import { Coroa } from "@/components/brand/coroa";
 import { UserMenu } from "./user-menu";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/stores/session";
+import { useQuery } from "@tanstack/react-query";
+import { getEstabelecimento } from "@/services/config.service";
 
 export interface ItemNav {
   href: string;
@@ -16,6 +19,9 @@ export interface ItemNav {
   /** sub-itens aparecem indentados */
   filhos?: { href: string; label: string }[];
   exato?: boolean;
+  somenteGrupo?: boolean;
+  papeis?: ("admin" | "caixa" | "garcom" | "cozinha" | "bar")[];
+  modulo?: "balcao" | "estoque";
 }
 
 /**
@@ -39,6 +45,13 @@ export function PainelShell({
   children: ReactNode;
 }) {
   const path = usePathname();
+  const usuario = useSession((s) => s.usuario);
+  const estabelecimentoQ = useQuery({ queryKey: ["estabelecimento"], queryFn: getEstabelecimento });
+  const navVisivel = nav.filter((item) => {
+    if (item.papeis && usuario?.papel !== "admin" && !item.papeis.includes(usuario?.papel as NonNullable<typeof usuario>["papel"])) return false;
+    if (item.modulo && !estabelecimentoQ.data?.modulos?.[item.modulo]) return false;
+    return true;
+  });
   const [drawer, setDrawer] = useState(false);
   const [recolhido, setRecolhido] = useState(false);
   const [temaClaro, setTemaClaro] = useState(false);
@@ -70,12 +83,16 @@ export function PainelShell({
 
   const Lista = ({ mini }: { mini?: boolean }) => (
     <nav aria-label={titulo} className="space-y-1">
-      {nav.map((item) => {
+      {navVisivel.map((item) => {
         const Icon = item.icon;
         const on = ativo(item.href, item.exato) || !!item.filhos?.some((f) => ativo(f.href));
         return (
           <div key={item.href}>
-            <Link
+            {item.somenteGrupo ? (
+              <div role="heading" aria-level={2} title={mini ? item.label : undefined} className={cn("flex h-10 items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wider text-subtle", mini && "justify-center px-0")}>
+                <Icon className="h-4 w-4 shrink-0" />{!mini && <span>{item.label}</span>}
+              </div>
+            ) : <Link
               href={item.href}
               title={mini ? item.label : undefined}
               aria-current={on ? "page" : undefined}
@@ -88,7 +105,7 @@ export function PainelShell({
               <Icon className={cn("h-5 w-5 shrink-0", on && "text-gold")} />
               {!mini && <span className="truncate">{item.label}</span>}
               {!mini && on && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-gold" />}
-            </Link>
+            </Link>}
             {!mini && item.filhos && (
               <div className="ml-6 mt-1 space-y-0.5 border-l border-line pl-3">
                 {item.filhos.map((f) => (

@@ -35,16 +35,25 @@ export function PrimeirosPassos() {
   const d = q.data;
   if (!d || escondido) return null;
 
-  const passos = [
-    { feito: d.produtos > 0, titulo: "Cadastre os produtos", texto: "Nome, preço e foto. As categorias já vêm criadas pelo tipo do seu negócio.", href: "/admin/produtos", acao: "Cadastrar produtos" },
-    { feito: d.temLogo, titulo: "Coloque sua logo e sua cor", texto: "Aparecem no cardápio do cliente e nas telas da equipe.", href: "/admin/configuracoes", acao: "Personalizar" },
-    { feito: d.usuarios > 1, titulo: "Cadastre a equipe", texto: "Um acesso para cada pessoa: garçom, caixa, cozinha e bar.", href: "/admin/usuarios", acao: "Cadastrar equipe" },
-    { feito: d.pedidos > 0, titulo: "Faça um pedido de teste", texto: "Abra uma comanda, aponte o celular para o QR e peça. O pedido aparece na tela da cozinha.", href: "/garcom", acao: "Abrir uma comanda" },
-  ];
+  const salão = ["bar", "restaurante", "hamburgueria", "lanchonete", "pizzaria", "cafeteria"].includes(d.tipoNegocio);
+  const passos = d.modulos?.balcao && !salão
+    ? [
+        { feito: d.produtos > 0, titulo: "Cadastre os produtos", texto: "Inclua nome, preço e unidade para começar as vendas.", href: "/admin/produtos", acao: "Cadastrar produtos" },
+        { feito: d.comCodigoBarras > 0, titulo: "Cadastre códigos de barras", texto: "Bipe os produtos no caixa ou gere um código interno no cadastro.", href: "/admin/produtos", acao: "Adicionar códigos", },
+        ...(d.modulos.estoque ? [{ feito: d.comEstoque > 0, titulo: "Configure o estoque inicial", texto: "Ative o controle de estoque e informe o saldo dos produtos.", href: "/admin/estoque", acao: "Configurar estoque" }] : []),
+        { feito: d.vendasBalcao > 0, titulo: "Faça a primeira venda", texto: "Abra o caixa e registre uma venda de teste.", href: "/caixa/balcao", acao: "Abrir caixa de balcão" },
+        { feito: d.temLogo, titulo: "Personalize sua loja", texto: "Adicione a logo e os dados do estabelecimento.", href: "/admin/configuracoes", acao: "Personalizar" },
+      ]
+    : [
+        { feito: d.produtos > 0, titulo: "Cadastre os produtos", texto: "Inclua nome, preço e escolha o setor que prepara cada item.", href: "/admin/produtos", acao: "Cadastrar produtos" },
+        { feito: d.setores > 0, titulo: "Confira os setores de produção", texto: "Direcione os itens para cozinha, bar ou outros setores.", href: "/admin/setores", acao: "Ver setores" },
+        { feito: d.pedidos > 0, titulo: "Abra a primeira comanda", texto: "O garçom acompanha pedidos e confirma a entrega.", href: "/garcom", acao: "Abrir atendimento" },
+        { feito: d.pedidosQr > 0, titulo: "Teste o pedido pelo QR", texto: "Confira a chegada do pedido na produção e no atendimento.", href: "/admin/mesas", acao: "Ver QRs" },
+        { feito: d.comandasFechadas > 0, titulo: "Feche a primeira conta", texto: "Confira os valores e a taxa de serviço no caixa.", href: "/caixa", acao: "Abrir comandas" },
+        { feito: d.temLogo, titulo: "Personalize sua loja", texto: "Adicione a logo e os dados do estabelecimento.", href: "/admin/configuracoes", acao: "Personalizar" },
+      ];
   const feitos = passos.filter((p) => p.feito).length;
 
-  // negócio que já tem movimento não precisa do guia (a não ser logo depois do cadastro)
-  if (d.pedidos > 0 && !params.get("bemvindo")) return null;
   if (feitos === passos.length) return null;
 
   const esconder = () => {
@@ -71,7 +80,7 @@ export function PrimeirosPassos() {
             {params.get("bemvindo") ? "Seu sistema está no ar" : "Primeiros passos"}
           </p>
           <p className="mt-2 text-sm text-muted">
-            {feitos} de {passos.length} feitos. Em poucos minutos dá para atender o primeiro cliente.
+            {feitos} de {passos.length} feitos. A lista acompanha os recursos e os dados desta loja.
           </p>
         </div>
         <button onClick={esconder} className="text-sm text-subtle hover:text-cream">

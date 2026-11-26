@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Receipt, Search } from "lucide-react";
+import { ArrowLeft, Receipt, Search, ScanBarcode } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { SkeletonLista } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
@@ -50,6 +50,7 @@ export default function CaixaComandas() {
           <Link href="/caixa/dia" className="rounded-lg bg-red px-3 py-1.5 font-semibold text-cream">Abrir caixa</Link>
         </div>
       )}
+      {estQ.data?.modulos?.balcao && <Link href="/caixa/balcao" className="flex min-h-14 items-center gap-3 border-b border-gold/30 bg-gold-soft px-4 py-3 font-semibold text-cream hover:bg-gold/20 lg:px-8"><ScanBarcode className="h-5 w-5 text-gold" /><span className="flex-1">Caixa de balcão</span><span className="text-sm text-muted">Bipe produtos para iniciar uma venda →</span></Link>}
       <div className="flex h-[calc(100dvh-64px)] lg:h-[calc(100dvh-80px)]">
         {/* lista */}
         <aside className={cn("flex w-full shrink-0 flex-col border-r border-line lg:w-[360px]", selecionada && "hidden lg:flex")}>

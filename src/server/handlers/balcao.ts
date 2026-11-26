@@ -3,13 +3,14 @@ import { randomBytes } from "node:crypto";
 import { ServiceError } from "@/services/_base";
 import type { DocumentoFiscal, FormaPagamento, Produto, VendaBalcao } from "@/types";
 import { round2 } from "@/lib/utils";
-import { query, tx, um } from "../db";
+import { hashOperacao, quantidadeVendaValida, saldoPermiteVenda } from "@/lib/operacao-segura";
+import { query, tx, um, type Q } from "../db";
 import { exigir, exigirTenant, type Ctx } from "../comum";
 
 type Modulos = { balcao: boolean; estoque: boolean; nfce: boolean };
 type MotivoMovimento = "saldo_inicial" | "compra" | "devolucao" | "venda_balcao" | "perda" | "vencimento" | "consumo_interno" | "quebra" | "contagem" | "outro";
 const PRODUTO_BARRA_SQL = `select id, nome, preco, codigo_barras as "codigoBarras", controla_estoque as "controlaEstoque",
-  estoque, estoque_minimo as "estoqueMinimo", unidade from produtos`;
+  estoque, estoque_minimo as "estoqueMinimo", unidade, esgotado from produtos`;
 const DOC_SQL = `select id, venda_id as "vendaId", status, numero, serie, chave_acesso as "chaveAcesso",
   protocolo, url_danfe as "urlDanfe", url_xml as "urlXml", url_qrcode as "urlQrcode", url_consulta_nf as "urlConsulta", mensagem from documentos_fiscais`;
 
@@ -73,9 +74,25 @@ export async function movimentarEstoque(ctx: Ctx, d: { produtoId: string; tipo: 
   });
 }
 
+async function vendaPorChave(c: Q, chave: string, hash: string): Promise<VendaBalcao | null> {
+  const registro = await um<{ id: string; requestHash: string | null }>(
+    `select id, request_hash as "requestHash" from vendas_balcao where request_key=$1`, [chave], c,
+  );
+  if (!registro) return null;
+  if (registro.requestHash !== hash) throw new ServiceError("Esta tentativa já foi registrada com outros itens. Confira as vendas recentes antes de abrir uma nova venda.", "CONFLITO");
+  const venda = await um<VendaBalcao>(`select id, numero, status, criado_em as "criadoEm", subtotal, desconto, total from vendas_balcao where id=$1`, [registro.id], c);
+  if (!venda) return null;
+  const [itens, pagamento, fiscal] = await Promise.all([
+    c.query(`select nome, codigo_barras as "codigoBarras", unidade, quantidade, preco_unitario as "precoUnitario", total from itens_venda_balcao where venda_id=$1 order by id`, [venda.id]),
+    um<VendaBalcao["pagamento"]>(`select forma, valor, valor_recebido as "valorRecebido", troco from pagamentos_venda_balcao where venda_id=$1 limit 1`, [venda.id], c),
+    um<DocumentoFiscal>(`${DOC_SQL} where venda_id=$1`, [venda.id], c),
+  ]);
+  return { ...venda, itens: itens.rows, pagamento: pagamento!, fiscal: fiscal ?? undefined };
+}
+
 export async function registrarVendaBalcao(ctx: Ctx, d: {
   itens: { produtoId: string; quantidade: number }[]; forma: FormaPagamento; valorRecebido?: number;
-  desconto?: number; clienteNome?: string; clienteDocumento?: string; emitirNfce?: boolean;
+  desconto?: number; clienteNome?: string; clienteDocumento?: string; emitirNfce?: boolean; requestKey?: string;
 }): Promise<VendaBalcao> {
   const sessao = exigir(ctx, "caixa");
   const m = await modulos();
@@ -84,12 +101,14 @@ export async function registrarVendaBalcao(ctx: Ctx, d: {
   const formas: FormaPagamento[] = ["dinheiro", "pix", "debito", "credito", "outro"];
   if (!formas.includes(d.forma)) throw new ServiceError("Forma de pagamento inválida");
   if (d.emitirNfce && !m.nfce) throw new ServiceError("Ative a emissão de NFC-e nas configurações", "PROIBIDO");
+  const requestKey = String(d.requestKey ?? "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey)) throw new ServiceError("Atualize a tela do caixa para iniciar uma venda segura.");
 
   const agregados = new Map<string, number>();
   for (const i of d.itens) {
     const informada = Number(i.quantidade);
     const qtd = Math.round(informada * 1000) / 1000;
-    if (!i.produtoId || !Number.isFinite(informada) || Math.abs(informada - qtd) > 0.000001 || qtd <= 0 || qtd > 100_000) {
+    if (!i.produtoId || !quantidadeVendaValida(informada)) {
       throw new ServiceError("Quantidade inválida. Produtos por peso aceitam até três casas decimais em kg.");
     }
     agregados.set(i.produtoId, Math.round(((agregados.get(i.produtoId) ?? 0) + qtd) * 1000) / 1000);
@@ -98,9 +117,17 @@ export async function registrarVendaBalcao(ctx: Ctx, d: {
   if (clienteDocumento && ![11, 14].includes(clienteDocumento.length)) throw new ServiceError("CPF ou CNPJ do cliente inválido");
   const clienteNome = String(d.clienteNome ?? "").trim();
   if (clienteNome.length > 100) throw new ServiceError("O nome do consumidor deve ter no máximo 100 caracteres");
+  const requestHash = hashOperacao({
+    itens: [...agregados.entries()].sort(([a], [b]) => a.localeCompare(b)), forma: d.forma,
+    valorRecebido: d.forma === "dinheiro" ? round2(Number(d.valorRecebido ?? 0)) : null,
+    desconto: round2(Number(d.desconto ?? 0)), clienteNome, clienteDocumento,
+    emitirNfce: !!d.emitirNfce,
+  });
   return tx(async (c) => {
     const caixa = await um<{ id: string }>(`select id from caixas where fechado_em is null limit 1 for update`, [], c);
     if (!caixa) throw new ServiceError("Abra o caixa antes de registrar vendas", "PROIBIDO");
+    const anterior = await vendaPorChave(c, requestKey, requestHash);
+    if (anterior) return anterior;
     const produtos = await query<Produto>(`select p.id, p.nome, p.preco, p.codigo_barras as "codigoBarras",
       p.controla_estoque as "controlaEstoque", p.estoque, p.estoque_minimo as "estoqueMinimo", p.unidade,
       p.descricao, p.categoria_id as "categoriaId", p.setor_id as "setorId", p.imagem_url as "imagemUrl",
@@ -111,7 +138,7 @@ export async function registrarVendaBalcao(ctx: Ctx, d: {
     let subtotal = 0;
     const linhas = produtos.map((p) => {
       const quantidade = agregados.get(p.id)!;
-      if (p.controlaEstoque && quantidade > (p.estoque ?? 0)) throw new ServiceError(`Estoque insuficiente para ${p.nome}. Saldo: ${p.estoque ?? 0} ${p.unidade ?? "un"}.`);
+      if (!saldoPermiteVenda(!!p.controlaEstoque, p.estoque ?? 0, quantidade)) throw new ServiceError(`Estoque insuficiente para ${p.nome}. Saldo: ${p.estoque ?? 0} ${p.unidade ?? "un"}.`);
       const total = round2(p.preco * quantidade);
       subtotal = round2(subtotal + total);
       return { p, quantidade, total };
@@ -127,11 +154,17 @@ export async function registrarVendaBalcao(ctx: Ctx, d: {
       if (recebido < total) throw new ServiceError("Valor recebido menor que o total da venda");
       troco = round2(recebido - total);
     }
-    const venda = (await um<{ id: string; numero: number; criadoEm: string }>(
-      `insert into vendas_balcao (caixa_id, usuario_id, cliente_nome, cliente_documento, subtotal, desconto, total)
-       values ($1,$2,$3,$4,$5,$6,$7) returning id, numero, criado_em as "criadoEm"`,
-      [caixa.id, sessao.uid, clienteNome || null, clienteDocumento || null, subtotal, desconto, total], c,
-    ))!;
+    const venda = await um<{ id: string; numero: number; criadoEm: string }>(
+      `insert into vendas_balcao (caixa_id, usuario_id, cliente_nome, cliente_documento, subtotal, desconto, total, request_key, request_hash)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict (estabelecimento_id, request_key) where request_key is not null do nothing
+       returning id, numero, criado_em as "criadoEm"`,
+      [caixa.id, sessao.uid, clienteNome || null, clienteDocumento || null, subtotal, desconto, total, requestKey, requestHash], c,
+    );
+    if (!venda) {
+      const repetida = await vendaPorChave(c, requestKey, requestHash);
+      if (repetida) return repetida;
+      throw new ServiceError("Não foi possível confirmar esta venda. Tente novamente.", "CONFLITO");
+    }
     await c.query(`insert into pagamentos_venda_balcao (venda_id, caixa_id, forma, valor, valor_recebido, troco) values ($1,$2,$3,$4,$5,$6)`,
       [venda.id, caixa.id, d.forma, total, recebido, troco]);
     for (const { p, quantidade, total: linhaTotal } of linhas) {

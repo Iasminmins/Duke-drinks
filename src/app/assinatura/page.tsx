@@ -9,6 +9,7 @@ import { useMarca } from "@/components/brand/marca";
 import { RoleGuard } from "@/components/layout/role-guard";
 import { Button } from "@/components/ui/button";
 import { SkeletonLista } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/empty-state";
 import { PLANOS, PRODUTO } from "@/lib/planos";
 import { formatBRL } from "@/lib/format";
 import { PAPEL_HOME } from "@/lib/labels";
@@ -59,6 +60,7 @@ function Conteudo() {
 
         <h1 className="mt-8 font-display text-5xl leading-none">Assinatura</h1>
         {q.isLoading && <SkeletonLista linhas={3} className="mt-6" />}
+        {q.isError && <ErrorState onRetry={() => q.refetch()} />}
 
         {a && (
           <>
@@ -111,7 +113,7 @@ function Conteudo() {
             <section className="mt-6 rounded-card border border-line bg-bg-soft p-5">
               <p className="font-semibold">Como pagar</p>
               <p className="mt-1 text-sm text-muted">
-                Faça um Pix com o valor do plano e mande o comprovante pelo WhatsApp. A liberação é feita no mesmo dia.
+                {a.pixChave && a.whatsapp ? "Faça um Pix com o valor do plano e envie o comprovante pelo WhatsApp." : a.pixChave ? "Use a chave Pix configurada para falar com o administrador e confirmar o pagamento." : a.whatsapp ? "Entre em contato pelo WhatsApp configurado para receber as instruções de pagamento." : "As instruções de pagamento ainda não foram configuradas para esta conta."}
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 {a.pixChave && (

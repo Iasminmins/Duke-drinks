@@ -10,7 +10,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { SkeletonLista } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { getEstabelecimento, resetarDemo, salvarEstabelecimento } from "@/services/config.service";
+import { getEstabelecimento, getEstadoFiscal, resetarDemo, salvarEstabelecimento } from "@/services/config.service";
 import { mensagemErro } from "@/lib/errors";
 import type { Estabelecimento } from "@/types";
 import { Switch } from "@/components/ui/switch";
@@ -31,6 +31,7 @@ const schema = z.object({
 
 export default function ConfiguracoesPage() {
   const q = useQuery({ queryKey: ["estabelecimento"], queryFn: getEstabelecimento });
+  const fiscalQ = useQuery({ queryKey: ["estado-fiscal"], queryFn: getEstadoFiscal, enabled: !!q.data?.modulos?.nfce });
   const [f, setF] = useState<Estabelecimento | null>(null);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [reset, setReset] = useState(false);
@@ -174,6 +175,11 @@ export default function ConfiguracoesPage() {
 
       {f.modulos?.nfce && <Card>
         <CardHeader><CardTitle>Dados do emitente NFC-e</CardTitle></CardHeader>
+        <div className="mx-4 mb-2 rounded-lg border border-line bg-bg-soft p-3 text-sm" role="status">
+          {fiscalQ.isLoading ? "Verificando configuração fiscal…" : fiscalQ.data?.ausentes.length
+            ? <><b className="text-warn">Configuração pendente.</b> Falta: {fiscalQ.data.ausentes.join(", ")}.</>
+            : <><b className="text-ok">Dados preenchidos · {f.fiscalAmbiente === "producao" ? "Produção" : "Homologação"}.</b> Certificado digital e CSC precisam estar ativos e validados na Focus NFe.</>}
+        </div>
         <form className="grid gap-4 p-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
           <Field label="CNPJ" htmlFor="f-cnpj" dica="A Focus NFe precisa ter o certificado digital e credenciamento do emitente cadastrados.">
             <Input id="f-cnpj" inputMode="numeric" value={f.fiscalCnpj ?? ""} onChange={(e) => set({ fiscalCnpj: e.target.value.replace(/\D/g, "") })} />
@@ -191,7 +197,7 @@ export default function ConfiguracoesPage() {
               <option value="homologacao">Homologação (testes)</option><option value="producao">Produção</option>
             </Select>
           </Field>
-          <p className="text-xs leading-relaxed text-subtle sm:col-span-2">Defina FOCUS_NFE_TOKEN no servidor e cadastre certificado, CSC e emitente na conta da Focus NFe antes de testar. A produção gera documentos fiscais válidos.</p>
+          <p className="text-xs leading-relaxed text-subtle sm:col-span-2">Comece em homologação. Cadastre o certificado digital, o CSC e o emitente na conta da Focus NFe. A produção gera documentos fiscais válidos.</p>
           <div className="flex justify-end sm:col-span-2"><Button type="submit" loading={salvar.isPending}>Salvar dados fiscais</Button></div>
         </form>
       </Card>}

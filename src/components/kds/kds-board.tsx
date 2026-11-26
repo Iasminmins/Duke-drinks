@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Mascote } from "@/components/brand/mascote";
 import { avancarTicket, listarTickets, voltarTicket } from "@/services/pedidos.service";
+import { getCardapio } from "@/services/cardapio.service";
 import { useNow } from "@/hooks/useNow";
 import { useSession } from "@/stores/session";
 import { tocarAlerta } from "@/lib/som";
@@ -42,6 +43,8 @@ export function KdsBoard({ setor, nome }: { setor: string; nome: string }) {
     queryKey: ["kds", setor],
     queryFn: () => listarTickets(setor),
   });
+  const setoresQ = useQuery({ queryKey: ["kds-setores"], queryFn: getCardapio, staleTime: 60_000 });
+  const nomeSetor = setoresQ.data?.setores.find((s) => s.slug === setor)?.nome ?? nome;
 
   // destaca tickets que acabaram de chegar
   useEffect(() => {
@@ -86,7 +89,7 @@ export function KdsBoard({ setor, nome }: { setor: string; nome: string }) {
       <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line bg-bg-soft px-4">
         <div className="flex items-center gap-2">
           <Coroa className="h-4 w-6 text-gold" />
-          <span className="font-display text-2xl tracking-wide">KDS · {nome}</span>
+          <span className="font-display text-2xl tracking-wide">Produção · {nomeSetor}</span>
         </div>
         <span className="hidden items-center gap-1.5 font-mono text-lg tabular-nums text-muted sm:flex">
           <Clock className="h-4 w-4" />

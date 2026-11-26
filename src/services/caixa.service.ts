@@ -16,6 +16,7 @@ export interface NovoPagamento {
   forma: FormaPagamento;
   valor: number;
   valorRecebido?: number;
+  requestKey: string;
   /** ignorado: o servidor usa o usuário da sessão */
   usuarioId?: string;
 }
