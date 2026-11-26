@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut } from "lucide-react";
+import { ChevronDown, LogOut, Moon, Sun } from "lucide-react";
 import { useSession } from "@/stores/session";
 import { PAPEL_LABEL } from "@/lib/labels";
 
-export function UserMenu() {
+export function UserMenu({ temaClaro, alternarTema }: { temaClaro: boolean; alternarTema: () => void }) {
   const { usuario, sair } = useSession();
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
@@ -46,6 +46,18 @@ export function UserMenu() {
       </button>
       {aberto && (
         <div role="menu" className="absolute right-0 top-12 z-40 w-56 animate-fade-in rounded-xl border border-line bg-bg-soft p-1 shadow-2xl">
+          <button
+            role="menuitem"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-cream hover:bg-surface"
+            onClick={() => {
+              alternarTema();
+              setAberto(false);
+            }}
+          >
+            {temaClaro ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+            {temaClaro ? "Ativar modo escuro" : "Ativar modo claro"}
+          </button>
+          <div className="my-1 border-t border-line" />
           <button
             role="menuitem"
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[#ff6b7f] hover:bg-surface"

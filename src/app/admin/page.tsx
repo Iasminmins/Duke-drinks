@@ -42,21 +42,21 @@ export default function Dashboard() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={d.porHora} margin={{ left: 0, right: 8, top: 8 }}>
-                  <CartesianGrid vertical={false} stroke="#36363b" strokeDasharray="3 3" />
-                  <XAxis dataKey="hora" tick={{ fill: "#a8a196", fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <CartesianGrid vertical={false} stroke="var(--color-line)" strokeDasharray="3 3" />
+                  <XAxis dataKey="hora" tick={{ fill: "var(--color-muted)", fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis
-                    tick={{ fill: "#a8a196", fontSize: 12 }}
+                    tick={{ fill: "var(--color-muted)", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
                     width={60}
                     tickFormatter={(v) => `R$ ${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}`}
                   />
                   <Tooltip
-                    cursor={{ fill: "#f5b80014" }}
-                    contentStyle={{ background: "#1a1a1c", border: "1px solid #36363b", borderRadius: 10, color: "#f5ecd7" }}
+                    cursor={{ fill: "var(--color-gold-soft)" }}
+                    contentStyle={{ background: "var(--color-bg-soft)", border: "1px solid var(--color-line)", borderRadius: 10, color: "var(--color-cream)" }}
                     formatter={(v) => [formatBRL(Number(v)), "Faturamento"]}
                   />
-                  <Bar dataKey="total" fill="#f5b800" radius={[6, 6, 0, 0]} maxBarSize={44} />
+                  <Bar dataKey="total" fill="var(--color-gold)" radius={[6, 6, 0, 0]} maxBarSize={44} />
                 </BarChart>
               </ResponsiveContainer>
             )}

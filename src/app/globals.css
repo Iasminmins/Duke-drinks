@@ -147,6 +147,25 @@
 }
 .tema-comandou ::selection { background: #ffe066; color: #15171c; }
 
+/* modo claro para os painéis administrativos e do caixa */
+.tema-claro {
+  --color-bg: #f4f6f9;
+  --color-bg-soft: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-2: #eceff4;
+  --color-line: #dfe3e9;
+  --color-cream: #191b21;
+  --color-muted: #555b66;
+  --color-subtle: #777e89;
+  --color-red-soft: #fce7eb;
+  --color-gold: #956500;
+  --color-gold-600: #765000;
+  --color-gold-soft: #9565001a;
+  color-scheme: light;
+  color: var(--color-cream);
+}
+.tema-claro ::selection { background: #f5d979; color: #191b21; }
+
 /* hero da pagina do produto: imagem do celular com glow azul e entrada suave */
 .hero-comandou-visual { position: relative; }
 .hero-comandou-visual::before {

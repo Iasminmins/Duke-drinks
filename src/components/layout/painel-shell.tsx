@@ -41,10 +41,23 @@ export function PainelShell({
   const path = usePathname();
   const [drawer, setDrawer] = useState(false);
   const [recolhido, setRecolhido] = useState(false);
+  const [temaClaro, setTemaClaro] = useState(false);
 
   useEffect(() => {
     setDrawer(false);
   }, [path]);
+
+  useEffect(() => {
+    setTemaClaro(localStorage.getItem("comandou:tema-painel") === "claro");
+  }, []);
+
+  const alternarTema = () => {
+    setTemaClaro((atual) => {
+      const proximo = !atual;
+      localStorage.setItem("comandou:tema-painel", proximo ? "claro" : "escuro");
+      return proximo;
+    });
+  };
 
   const ativo = (href: string, exato?: boolean) => (exato ? path === href : path === href || path.startsWith(href + "/"));
 
@@ -100,7 +113,7 @@ export function PainelShell({
   );
 
   return (
-    <div className="flex min-h-dvh bg-bg">
+    <div className={cn("flex min-h-dvh bg-bg", temaClaro && "tema-claro")}>
       {/* sidebar desktop */}
       <aside
         className={cn(
@@ -169,7 +182,7 @@ export function PainelShell({
           </ol>
           <div className="ml-auto flex items-center gap-3">
             {extraHeader}
-            <UserMenu />
+            <UserMenu temaClaro={temaClaro} alternarTema={alternarTema} />
           </div>
         </header>
         <main className="flex-1 animate-fade-in px-4 py-6 lg:px-8">{children}</main>
