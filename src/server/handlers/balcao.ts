@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { ServiceError } from "@/services/_base";
 import type { DocumentoFiscal, FormaPagamento, Produto, VendaBalcao } from "@/types";
 import { round2 } from "@/lib/utils";
-import { hashOperacao, quantidadeVendaValida, saldoPermiteVenda } from "@/lib/operacao-segura";
+import { hashOperacao, quantidadeVendaValida, saldoPermiteVenda, vendaBalcaoPodeSerEstornada } from "@/lib/operacao-segura";
 import { query, tx, um, type Q } from "../db";
 import { exigir, exigirTenant, type Ctx } from "../comum";
 
@@ -82,11 +82,9 @@ async function vendaPorChave(c: Q, chave: string, hash: string): Promise<VendaBa
   if (registro.requestHash !== hash) throw new ServiceError("Esta tentativa já foi registrada com outros itens. Confira as vendas recentes antes de abrir uma nova venda.", "CONFLITO");
   const venda = await um<VendaBalcao>(`select id, numero, status, criado_em as "criadoEm", subtotal, desconto, total from vendas_balcao where id=$1`, [registro.id], c);
   if (!venda) return null;
-  const [itens, pagamento, fiscal] = await Promise.all([
-    c.query(`select nome, codigo_barras as "codigoBarras", unidade, quantidade, preco_unitario as "precoUnitario", total from itens_venda_balcao where venda_id=$1 order by id`, [venda.id]),
-    um<VendaBalcao["pagamento"]>(`select forma, valor, valor_recebido as "valorRecebido", troco from pagamentos_venda_balcao where venda_id=$1 limit 1`, [venda.id], c),
-    um<DocumentoFiscal>(`${DOC_SQL} where venda_id=$1`, [venda.id], c),
-  ]);
+  const itens = await c.query(`select nome, codigo_barras as "codigoBarras", unidade, quantidade, preco_unitario as "precoUnitario", total from itens_venda_balcao where venda_id=$1 order by id`, [venda.id]);
+  const pagamento = await um<VendaBalcao["pagamento"]>(`select forma, valor, valor_recebido as "valorRecebido", troco from pagamentos_venda_balcao where venda_id=$1 limit 1`, [venda.id], c);
+  const fiscal = await um<DocumentoFiscal>(`${DOC_SQL} where venda_id=$1`, [venda.id], c);
   return { ...venda, itens: itens.rows, pagamento: pagamento!, fiscal: fiscal ?? undefined };
 }
 
@@ -194,21 +192,67 @@ export async function registrarVendaBalcao(ctx: Ctx, d: {
 export async function listarVendasBalcao(ctx: Ctx): Promise<VendaBalcao[]> {
   exigir(ctx, "admin", "caixa");
   if (!(await modulos()).balcao) throw new ServiceError("Ative o módulo de balcão nas configurações", "PROIBIDO");
-  const vendas = await query<VendaBalcao>(`select id, numero, status, criado_em as "criadoEm", subtotal, desconto, total
-    from vendas_balcao order by criado_em desc limit 100`);
+  const vendas = await query<VendaBalcao>(`select v.id, v.numero, v.status, v.criado_em as "criadoEm", v.subtotal, v.desconto, v.total,
+      (cx.fechado_em is not null) as "caixaFechado", v.motivo_cancelamento as "motivoCancelamento"
+    from vendas_balcao v join caixas cx on cx.id = v.caixa_id order by v.criado_em desc limit 100`);
   if (!vendas.length) return [];
   const ids = vendas.map((v) => v.id);
-  const [itens, pagamentos, docs] = await Promise.all([
-    query<{ vendaId: string; nome: string; codigoBarras: string | null; unidade: string; quantidade: number; precoUnitario: number; total: number }>(
-      `select venda_id as "vendaId", nome, codigo_barras as "codigoBarras", unidade, quantidade, preco_unitario as "precoUnitario", total from itens_venda_balcao where venda_id=any($1)`, [ids]),
-    query<{ vendaId: string; forma: FormaPagamento; valor: number; valorRecebido: number | null; troco: number | null }>(
-      `select venda_id as "vendaId", forma, valor, valor_recebido as "valorRecebido", troco from pagamentos_venda_balcao where venda_id=any($1)`, [ids]),
-    query<DocumentoFiscal>(`${DOC_SQL} where venda_id=any($1)`, [ids]),
-  ]);
+  const itens = await query<{ vendaId: string; nome: string; codigoBarras: string | null; unidade: string; quantidade: number; precoUnitario: number; total: number }>(
+    `select venda_id as "vendaId", nome, codigo_barras as "codigoBarras", unidade, quantidade, preco_unitario as "precoUnitario", total from itens_venda_balcao where venda_id=any($1)`, [ids]);
+  const pagamentos = await query<{ vendaId: string; forma: FormaPagamento; valor: number; valorRecebido: number | null; troco: number | null }>(
+    `select venda_id as "vendaId", forma, valor, valor_recebido as "valorRecebido", troco from pagamentos_venda_balcao where venda_id=any($1)`, [ids]);
+  const docs = await query<DocumentoFiscal>(`${DOC_SQL} where venda_id=any($1)`, [ids]);
   return vendas.map((v) => ({ ...v, itens: itens.filter((i) => i.vendaId === v.id).map(({ vendaId: _id, codigoBarras, ...i }) => { void _id; return { ...i, codigoBarras: codigoBarras ?? undefined }; }),
     pagamento: (({ vendaId: _id, valorRecebido, troco, ...p }) => { void _id; return { ...p, valorRecebido: valorRecebido ?? undefined, troco: troco ?? undefined }; })(pagamentos.find((p) => p.vendaId === v.id)!),
     fiscal: docs.find((d) => d.vendaId === v.id),
   }));
+}
+
+/** Estorna a venda balcão no caixa aberto, registra o motivo e devolve o estoque controlado. */
+export async function estornarVendaBalcao(ctx: Ctx, vendaId: string, motivo: string): Promise<void> {
+  const sessao = exigir(ctx, "caixa");
+  if (!(await modulos()).balcao) throw new ServiceError("Ative o módulo de balcão nas configurações", "PROIBIDO");
+  const justificativa = String(motivo ?? "").trim();
+  if (justificativa.length < 5) throw new ServiceError("Descreva o motivo do estorno (mín. 5 caracteres)");
+
+  await tx(async (c) => {
+    const venda = await um<{ id: string; numero: number; status: string; caixaFechado: boolean }>(
+      `select v.id, v.numero, v.status, (cx.fechado_em is not null) as "caixaFechado"
+       from vendas_balcao v join caixas cx on cx.id = v.caixa_id
+       where v.id = $1 for update of v, cx`,
+      [String(vendaId)],
+      c,
+    );
+    if (!venda) throw new ServiceError("Venda não encontrada", "NAO_ENCONTRADO");
+    const fiscal = await um<{ status: string }>(`select status from documentos_fiscais where venda_id=$1`, [venda.id], c);
+    if (!vendaBalcaoPodeSerEstornada({ status: venda.status, caixaFechado: venda.caixaFechado, fiscalStatus: fiscal?.status ?? null })) {
+      if (venda.status !== "concluida") throw new ServiceError("Esta venda já foi estornada", "CONFLITO");
+      if (venda.caixaFechado) throw new ServiceError("O caixa desta venda já foi fechado", "PROIBIDO");
+      throw new ServiceError("Esta venda tem documento fiscal associado. O cancelamento fiscal deve ser resolvido antes do estorno.", "PROIBIDO");
+    }
+
+    const itens = await query<{ produtoId: string; quantidade: number; controlaEstoque: boolean; nome: string }>(
+      `select i.produto_id as "produtoId", i.quantidade, p.controla_estoque as "controlaEstoque", i.nome
+       from itens_venda_balcao i join produtos p on p.id=i.produto_id where i.venda_id=$1`,
+      [venda.id],
+      c,
+    );
+    await c.query(
+      `update vendas_balcao set status='cancelada', cancelado_em=now(), cancelado_por=$2, motivo_cancelamento=$3
+       where id=$1 and status='concluida'`,
+      [venda.id, sessao.uid, justificativa],
+    );
+
+    for (const item of itens) {
+      if (!item.controlaEstoque) continue;
+      await c.query(`update produtos set estoque=estoque+$2 where id=$1`, [item.produtoId, item.quantidade]);
+      await c.query(
+        `insert into movimentos_estoque (produto_id, usuario_id, venda_id, tipo, motivo, quantidade, observacao)
+         values ($1,$2,$3,'entrada','devolucao',$4,$5)`,
+        [item.produtoId, sessao.uid, venda.id, item.quantidade, `Estorno da venda #${venda.numero}: ${justificativa}`],
+      );
+    }
+  });
 }
 
 interface FocusResposta {

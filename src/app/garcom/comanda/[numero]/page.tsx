@@ -199,7 +199,7 @@ export default function ComandaDetalhe() {
                     <button
                       aria-label={`Cancelar ${i.nome}`}
                       onClick={() => setItemParaCancelar({ p: p.id, i: i.id, nome: `${i.quantidade}× ${i.nome}`, status: i.status })}
-                      className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-line px-2.5 text-xs text-muted hover:border-red hover:text-[#ff6b7f]"
+                      className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-line px-2.5 text-xs text-muted hover:border-red hover:text-danger-fg"
                     >
                       <Trash2 className="h-4 w-4" /> Cancelar
                     </button>

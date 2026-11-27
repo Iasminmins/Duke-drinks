@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/providers";
 import { OfflineBanner } from "@/components/layout/offline-banner";
 import { SwRegister } from "@/components/layout/sw-register";
+import { AdminShellGlobal } from "@/components/layout/admin-shell-global";
 import { MarcaProvider } from "@/components/brand/marca";
 import { PRODUTO } from "@/lib/planos";
 import { marcaDaRequisicao } from "@/server/tenant";
@@ -54,7 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Providers>
             <OfflineBanner />
             <SwRegister />
-            {!plataforma && !marca ? <NegocioNaoEncontrado /> : children}
+            {!plataforma && !marca ? <NegocioNaoEncontrado /> : <AdminShellGlobal>{children}</AdminShellGlobal>}
           </Providers>
         </MarcaProvider>
       </body>

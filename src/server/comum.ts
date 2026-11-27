@@ -20,6 +20,8 @@ export interface Ctx {
   tenant: Tenant | null;
   /** o dono da plataforma está logado (só no domínio principal) */
   plataformaLogada: boolean;
+  /** Requisição no domínio central, onde a sessão assinada seleciona o estabelecimento. */
+  plataformaHost: boolean;
   ip: string;
   iniciarSessao: (u: Usuario, tenantId?: string) => void;
   encerrarSessao: () => void;
@@ -122,11 +124,9 @@ export async function carregarPagamentos(c: Q, comandaIds: string[]): Promise<Pa
 export async function detalhar(c: Q, comandas: Comanda[]): Promise<ComandaDetalhada[]> {
   if (!comandas.length) return [];
   const ids = comandas.map((x) => x.id);
-  const [pedidos, pagamentos, taxa] = await Promise.all([
-    carregarPedidos(c, ids),
-    carregarPagamentos(c, ids),
-    getTaxaServico(c),
-  ]);
+  const pedidos = await carregarPedidos(c, ids);
+  const pagamentos = await carregarPagamentos(c, ids);
+  const taxa = await getTaxaServico(c);
   return comandas.map((cm) => {
     const ps = pedidos.filter((p) => p.comandaId === cm.id);
     const pgs = pagamentos.filter((p) => p.comandaId === cm.id);

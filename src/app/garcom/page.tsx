@@ -127,7 +127,7 @@ export default function ComandasPage() {
               </span>
               <span className="flex flex-col items-end gap-1">
                 <span className="font-semibold tabular-nums">{formatBRL(c.totais.total)}</span>
-                {chamando(c) && <BellRing className="h-4 w-4 text-[#ff6b7f]" />}
+                {chamando(c) && <BellRing className="h-4 w-4 text-danger-fg" />}
                 {conta(c) && <Receipt className="h-4 w-4 text-gold" />}
               </span>
             </Link>

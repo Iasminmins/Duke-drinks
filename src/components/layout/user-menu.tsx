@@ -60,7 +60,7 @@ export function UserMenu({ temaClaro, alternarTema }: { temaClaro: boolean; alte
           <div className="my-1 border-t border-line" />
           <button
             role="menuitem"
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[#ff6b7f] hover:bg-surface"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-danger-fg hover:bg-surface"
             onClick={() => {
               sair();
               router.replace("/login");

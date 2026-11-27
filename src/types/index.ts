@@ -94,6 +94,8 @@ export interface VendaBalcao {
   id: ID;
   numero: number;
   status: "concluida" | "cancelada";
+  caixaFechado?: boolean;
+  motivoCancelamento?: string;
   criadoEm: ISODate;
   subtotal: number;
   desconto: number;

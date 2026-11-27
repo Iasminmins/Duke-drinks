@@ -156,7 +156,7 @@ export function CrudSimples<T extends { id: string }, F extends object>({
         >
           <div className="space-y-4">
             {campos(form, (patch) => setForm((f) => (f ? { ...f, ...patch } : f)))}
-            {erro && <p role="alert" className="text-sm text-[#ff6b7f]">{erro}</p>}
+            {erro && <p role="alert" className="text-sm text-danger-fg">{erro}</p>}
           </div>
         </Dialog>
       )}

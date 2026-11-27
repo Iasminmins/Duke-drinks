@@ -1,11 +1,12 @@
 import "server-only";
 import { PROXIMO_STATUS } from "@/lib/labels";
+import { pedidoPodeSerCriado } from "@/lib/operacao-segura";
 import { ServiceError } from "@/services/_base";
 import type { NovoPedido } from "@/services/pedidos.service";
 import type { Comanda, ItemPedido, Notificacao, Pedido, StatusPedido, TicketKds } from "@/types";
 import { pool, query, tx, um } from "../db";
 import { bloqueado, limpar, registrarFalha } from "../limite";
-import { carregarPedidos, codigoConfere, comandaPorId, exigir, type Ctx } from "../comum";
+import { carregarPedidos, codigoConfere, comandaPorId, exigir, COMANDA_SQL, type Ctx } from "../comum";
 
 const ORDEM: StatusPedido[] = ["recebido", "preparando", "pronto", "entregue", "cancelado"];
 const menorStatus = (itens: Pick<ItemPedido, "status">[]) =>
@@ -35,9 +36,19 @@ export async function criarPedido(ctx: Ctx, dados: NovoPedido): Promise<Pedido> 
   if (itensEntrada.length > 60) throw new ServiceError("Pedido grande demais. Envie em partes.");
 
   return tx(async (c) => {
+    // Pagamentos e cancelamentos também bloqueiam a linha da comanda. A validação
+    // precisa ser refeita aqui para um pedido não entrar depois do fechamento.
+    const cmBloqueada = await um<Comanda>(`${COMANDA_SQL} where c.id = $1 for update of c`, [cm.id], c);
+    if (!cmBloqueada || !pedidoPodeSerCriado({
+      status: cmBloqueada.status,
+      origem,
+      codigoValido: origem === "garcom" || codigoConfere(cmBloqueada, dados?.codigo),
+    })) {
+      throw new ServiceError("Esta comanda não está aberta para pedidos", "PROIBIDO");
+    }
     const ids = [...new Set(itensEntrada.map((i) => String(i.produtoId)))];
     const prods = await query<{ id: string; nome: string; preco: number; setorId: string; esgotado: boolean; ativo: boolean }>(
-      `select id, nome, preco, setor_id as "setorId", esgotado, ativo from produtos where id = any($1)`,
+      `select id, nome, preco, setor_id as "setorId", esgotado, ativo from produtos where id = any($1) order by id for update`,
       [ids],
       c,
     );

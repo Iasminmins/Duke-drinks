@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
 import { RefreshCw } from "lucide-react";
@@ -10,10 +10,11 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { SkeletonLista } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { getEstabelecimento, getEstadoFiscal, resetarDemo, salvarEstabelecimento } from "@/services/config.service";
+import { aplicarModeloTipoNegocio, getEstabelecimento, getEstadoFiscal, getTipoNegocio, resetarDemo, salvarEstabelecimento } from "@/services/config.service";
 import { mensagemErro } from "@/lib/errors";
 import type { Estabelecimento } from "@/types";
 import { Switch } from "@/components/ui/switch";
+import { MODELO_POR_TIPO, TIPOS_NEGOCIO, type TipoNegocio } from "@/lib/planos";
 
 const schema = z.object({
   nome: z.string().trim().min(2, "Informe o nome"),
@@ -30,14 +31,20 @@ const schema = z.object({
 });
 
 export default function ConfiguracoesPage() {
+  const qc = useQueryClient();
   const q = useQuery({ queryKey: ["estabelecimento"], queryFn: getEstabelecimento });
+  const tipoQ = useQuery({ queryKey: ["tipo-negocio"], queryFn: getTipoNegocio });
   const fiscalQ = useQuery({ queryKey: ["estado-fiscal"], queryFn: getEstadoFiscal, enabled: !!q.data?.modulos?.nfce });
   const [f, setF] = useState<Estabelecimento | null>(null);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [reset, setReset] = useState(false);
+  const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio | "">("");
   useEffect(() => {
     if (q.data && !f) setF(q.data);
   }, [q.data, f]);
+  useEffect(() => {
+    if (tipoQ.data && !tipoNegocio) setTipoNegocio(tipoQ.data as TipoNegocio);
+  }, [tipoQ.data, tipoNegocio]);
 
   const salvar = useMutation({
     mutationFn: () => salvarEstabelecimento({ ...f!, logoUrl: f!.logoUrl ?? null } as Estabelecimento),
@@ -60,12 +67,44 @@ export default function ConfiguracoesPage() {
       toast.error(mensagemErro(e));
     },
   });
+  const modeloM = useMutation({
+    mutationFn: () => aplicarModeloTipoNegocio(tipoNegocio as TipoNegocio),
+    onSuccess: async (r) => {
+      setTipoNegocio(r.tipo);
+      toast.success(`Tipo salvo. ${r.categoriasAdicionadas.length} categorias e ${r.setoresAdicionados.length} setores adicionados.`);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["tipo-negocio"] }),
+        qc.invalidateQueries({ queryKey: ["primeiros-passos"] }),
+        qc.invalidateQueries({ queryKey: ["admin-categorias"] }),
+        qc.invalidateQueries({ queryKey: ["admin-setores"] }),
+      ]);
+    },
+    onError: (e) => toast.error(mensagemErro(e)),
+  });
 
   if (!f) return <SkeletonLista />;
   const set = (patch: Partial<Estabelecimento>) => setF({ ...f, ...patch });
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+      <Card className="xl:col-span-2">
+        <CardHeader><CardTitle>Tipo de negócio e organização inicial</CardTitle></CardHeader>
+        <div className="space-y-4 p-4">
+          <Field label="Atividade principal" htmlFor="e-tipo-negocio" dica="Aplicar o modelo só adiciona sugestões que faltam. Seus produtos e categorias atuais continuam como estão.">
+            <Select id="e-tipo-negocio" value={tipoNegocio} onChange={(e) => setTipoNegocio(e.target.value as TipoNegocio)}>
+              <option value="" disabled>{tipoQ.isLoading ? "Carregando…" : "Selecione"}</option>
+              {TIPOS_NEGOCIO.map((tipo) => <option key={tipo.id} value={tipo.id}>{tipo.label}</option>)}
+            </Select>
+          </Field>
+          {tipoNegocio && <div className="grid gap-3 rounded-lg border border-line bg-bg-soft p-3 text-sm sm:grid-cols-2">
+            <div><p className="font-semibold">Setores sugeridos</p><p className="mt-1 text-muted">{MODELO_POR_TIPO[tipoNegocio].setores.map((s) => s.nome).join(" · ")}</p></div>
+            <div><p className="font-semibold">Categorias do modelo</p><p className="mt-1 text-muted">{MODELO_POR_TIPO[tipoNegocio].categorias.join(" · ")}</p></div>
+          </div>}
+          <div className="flex justify-end">
+            <Button disabled={!tipoNegocio} loading={modeloM.isPending} onClick={() => modeloM.mutate()}>Salvar atividade e aplicar sugestões</Button>
+          </div>
+        </div>
+      </Card>
       <Card>
         <CardHeader><CardTitle>Estabelecimento</CardTitle></CardHeader>
         <form

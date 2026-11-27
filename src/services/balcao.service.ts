@@ -25,6 +25,9 @@ export function registrarVendaBalcao(dados: {
 }): Promise<VendaBalcao> {
   return rpc("registrarVendaBalcao", dados);
 }
+export function estornarVendaBalcao(vendaId: string, motivo: string): Promise<void> {
+  return rpc("estornarVendaBalcao", vendaId, motivo);
+}
 export function emitirNfce(vendaId: string): Promise<DocumentoFiscal> {
   return rpc("emitirNfce", vendaId);
 }

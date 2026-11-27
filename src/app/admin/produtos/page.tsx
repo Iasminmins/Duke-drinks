@@ -18,6 +18,7 @@ import { SkeletonLista } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProdutoImagem } from "@/components/cliente/produto-imagem";
+import { CodigoBarras } from "@/components/admin/codigo-barras";
 import { alternarEsgotado, excluirProduto, gerarCodigoBarrasInterno, getCardapioAdmin, salvarProduto } from "@/services/cardapio.service";
 import { formatBRL } from "@/lib/format";
 import { mensagemErro } from "@/lib/errors";
@@ -95,7 +96,7 @@ export default function ProdutosPage() {
     <div>
       <PageHeader
         descricao={q.data ? `${filtrados.length} produto(s) · ${q.data.produtos.filter((p) => p.ativo && p.esgotado).length} esgotado(s)` : undefined}
-        acoes={<div className="flex gap-2"><Link href="/admin/produtos/etiquetas"><Button variant="secondary"><Tag className="h-4 w-4" /> Etiquetas</Button></Link><Button onClick={() => setEditando(novo())}><Plus className="h-4 w-4" /> Novo produto</Button></div>}
+        acoes={<div className="flex gap-2"><Link href="/admin/produtos/etiquetas"><Button variant="secondary"><Tag className="h-4 w-4" /> Códigos e etiquetas</Button></Link><Button onClick={() => setEditando(novo())}><Plus className="h-4 w-4" /> Novo produto</Button></div>}
       />
 
       <Card className="mb-4 grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_200px_160px_auto]">
@@ -283,7 +284,7 @@ function ProdutoForm({
               <input type="file" accept="image/*" className="sr-only" onChange={(e) => onImagem(e.target.files?.[0])} />
             </label>
             {f.imagemUrl && (
-              <button className="block text-xs text-subtle hover:text-[#ff6b7f]" onClick={() => set("imagemUrl", undefined)}>Remover foto</button>
+              <button className="block text-xs text-subtle hover:text-danger-fg" onClick={() => set("imagemUrl", undefined)}>Remover foto</button>
             )}
             <p className="text-xs text-subtle">Quadrada, até 1,5 MB. Preview local na demo.</p>
           </div>
@@ -316,6 +317,7 @@ function ProdutoForm({
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Field label="Código de barras" htmlFor="p-ean" dica="Use o EAN/GTIN do fabricante ou gere um código interno Code 39 para imprimir e ler no caixa.">
               <div className="flex gap-2"><Input id="p-ean" value={f.codigoBarras ?? ""} onChange={(e) => set("codigoBarras", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} /><Button type="button" variant="secondary" loading={gerarCodigo.isPending} disabled={!!f.codigoBarras} onClick={() => gerarCodigo.mutate()}>Gerar</Button></div>
+              {f.codigoBarras && <div className="mt-3 max-w-sm rounded-lg border border-line bg-white p-3"><CodigoBarras valor={f.codigoBarras} className="h-12 w-full" /><p className="mt-1 text-center font-mono text-xs text-black">{f.codigoBarras}</p></div>}
             </Field>
             <Field label="Unidade de venda" htmlFor="p-unidade" dica="Para carne vendida no peso, use kg. O preço será por quilo e o caixa aceitará frações, como 0,650 kg.">
               <Input id="p-unidade" value={f.unidade ?? "un"} maxLength={6} onChange={(e) => set("unidade", e.target.value)} />

@@ -99,7 +99,7 @@ export function KdsBoard({ setor, nome }: { setor: string; nome: string }) {
           <b className="text-gold">{q.data?.length ?? 0}</b> em aberto
         </span>
         {atrasados > 0 && (
-          <span className="rounded-full bg-red-soft px-3 py-1 text-sm font-semibold text-[#ff6b7f]">{atrasados} atrasado(s)</span>
+          <span className="rounded-full bg-red-soft px-3 py-1 text-sm font-semibold text-danger-fg">{atrasados} atrasado(s)</span>
         )}
 
         <div className="ml-auto flex items-center gap-2">

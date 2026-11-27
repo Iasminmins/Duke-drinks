@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 const tons = {
   neutral: "bg-surface-2 text-muted",
   gold: "bg-gold-soft text-gold",
-  red: "bg-red-soft text-[#ff6b7f]",
+  red: "bg-red-soft text-danger-fg",
   ok: "bg-ok-soft text-ok",
   warn: "bg-warn-soft text-warn",
   info: "bg-info-soft text-info",

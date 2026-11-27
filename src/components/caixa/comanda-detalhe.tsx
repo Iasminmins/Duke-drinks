@@ -162,7 +162,7 @@ export function ComandaDetalhe({
                   <span className={cn("font-medium", p.estornado && "line-through")}>{FORMA_LABEL[p.forma]}</span>
                   <span className="ml-2 text-xs text-subtle">{formatHora(p.criadoEm)}</span>
                   {p.troco ? <span className="ml-2 text-xs text-muted">troco {formatBRL(p.troco)}</span> : null}
-                  {p.estornado && <span className="block text-xs text-[#ff6b7f]">Estornado: {p.motivoEstorno}</span>}
+                  {p.estornado && <span className="block text-xs text-danger-fg">Estornado: {p.motivoEstorno}</span>}
                 </div>
                 {p.estornado && <Badge tom="red">Estornado</Badge>}
                 <span className="tabular-nums">{formatBRL(p.valor)}</span>
@@ -170,7 +170,7 @@ export function ComandaDetalhe({
                   <button
                     onClick={() => setEstornar(p)}
                     aria-label="Estornar pagamento"
-                    className="grid h-8 w-8 place-items-center rounded-md text-subtle hover:bg-surface-2 hover:text-[#ff6b7f]"
+                    className="grid h-8 w-8 place-items-center rounded-md text-subtle hover:bg-surface-2 hover:text-danger-fg"
                   >
                     <Undo2 className="h-4 w-4" />
                   </button>

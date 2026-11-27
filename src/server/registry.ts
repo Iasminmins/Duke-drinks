@@ -27,8 +27,12 @@ export const REGISTRO: Record<string, H> = {
   salvarUsuario: acesso.salvarUsuario,
   alternarUsuarioAtivo: acesso.alternarUsuarioAtivo,
   getEstabelecimento: acesso.getEstabelecimento,
+  getTipoNegocio: acesso.getTipoNegocio,
+  listarEstabelecimentosAcessiveis: acesso.listarEstabelecimentosAcessiveis,
+  alternarEstabelecimento: acesso.alternarEstabelecimento,
   getEstadoFiscal: acesso.getEstadoFiscal,
   salvarEstabelecimento: acesso.salvarEstabelecimento,
+  aplicarModeloTipoNegocio: acesso.aplicarModeloTipoNegocio,
   resetarDemo: acesso.resetarDemo,
   // cardápio
   getCardapio: cardapio.getCardapio,
@@ -85,6 +89,7 @@ export const REGISTRO: Record<string, H> = {
   buscarProdutoBalcao: balcao.buscarProdutoBalcao,
   listarProdutosBalcao: balcao.listarProdutosBalcao,
   registrarVendaBalcao: balcao.registrarVendaBalcao,
+  estornarVendaBalcao: balcao.estornarVendaBalcao,
   listarVendasBalcao: balcao.listarVendasBalcao,
   emitirNfce: balcao.emitirNfce,
   listarEstoque: balcao.listarEstoque,
@@ -94,12 +99,13 @@ export const REGISTRO: Record<string, H> = {
   getResumoDashboard: relatorios.getResumoDashboard,
   // assinatura do negócio
   getAssinatura: acesso.getAssinatura,
+  solicitarEstabelecimentos: acesso.solicitarEstabelecimentos,
   // painel do admin
   getPrimeirosPassos: acesso.getPrimeirosPassos,
 };
 
 /** com a assinatura vencida/suspensa, só isto funciona (entrar e ver como regularizar) */
-export const LIBERADAS_SEM_ASSINATURA = new Set(["login", "loginEmpresa", "acessarConta", "entrarComToken", "logout", "sessaoAtual", "getEstabelecimento", "getAssinatura"]);
+export const LIBERADAS_SEM_ASSINATURA = new Set(["login", "loginEmpresa", "acessarConta", "entrarComToken", "logout", "sessaoAtual", "getEstabelecimento", "getTipoNegocio", "getAssinatura", "solicitarEstabelecimentos", "listarEstabelecimentosAcessiveis", "alternarEstabelecimento"]);
 
 /** operações do domínio principal (site do produto + painel da plataforma) */
 export const REGISTRO_PLATAFORMA: Record<string, H> = {
@@ -112,4 +118,7 @@ export const REGISTRO_PLATAFORMA: Record<string, H> = {
   plataformaSessao: plataforma.plataformaSessao,
   plataformaListar: plataforma.plataformaListar,
   plataformaAtualizar: plataforma.plataformaAtualizar,
+  plataformaListarSolicitacoes: plataforma.plataformaListarSolicitacoes,
+  plataformaAtualizarSolicitacao: plataforma.plataformaAtualizarSolicitacao,
+  plataformaVincularEstabelecimento: plataforma.plataformaVincularEstabelecimento,
 };

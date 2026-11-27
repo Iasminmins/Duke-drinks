@@ -35,8 +35,7 @@ export default function EtiquetasPage() {
       .etiqueta:last-child { break-after: auto; page-break-after: auto; }
     }`}</style>
     <div className="print:hidden">
-      <h1 className="mb-2 font-display text-2xl font-bold">Etiquetas de produtos</h1>
-      <PageHeader descricao="Selecione os produtos e imprima etiquetas com código de barras para usar no caixa." acoes={<Link href="/admin/produtos"><Button variant="secondary"><ArrowLeft className="h-4 w-4" /> Produtos</Button></Link>} />
+      <PageHeader descricao="Veja os códigos, selecione os produtos e imprima etiquetas para usar no caixa." acoes={<Link href="/admin/produtos"><Button variant="secondary"><ArrowLeft className="h-4 w-4" /> Produtos</Button></Link>} />
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="text-sm text-muted">{produtos.length} produto(s) com código · {etiquetas.length} etiqueta(s) selecionada(s). Para gerar novos códigos, edite o produto.</div>
         <Button disabled={!etiquetas.length} onClick={() => window.print()}><Printer className="h-4 w-4" /> Imprimir etiquetas</Button>
@@ -54,10 +53,10 @@ export default function EtiquetasPage() {
 }
 
 function LinhaProduto({ produto: p, marcado, copias, aoMarcar, aoMudarCopias }: { produto: Produto; marcado: boolean; copias: number; aoMarcar: (v: boolean) => void; aoMudarCopias: (v: number) => void }) {
-  return <label className="flex cursor-pointer items-center gap-3 p-3 text-sm">
-    <input type="checkbox" checked={marcado} onChange={(e) => aoMarcar(e.target.checked)} />
-    <span className="min-w-0 flex-1"><b className="block truncate">{p.nome}</b><small className="text-muted">{p.codigoBarras} · {formatBRL(p.preco)}{p.unidade?.toLowerCase() === "kg" ? "/kg" : ""}</small></span>
-    <span className="text-xs text-muted">Cópias</span><Input aria-label={`Cópias da etiqueta de ${p.nome}`} type="number" min={1} max={100} value={copias} onChange={(e) => aoMudarCopias(Number(e.target.value))} onClick={(e) => e.stopPropagation()} className="w-20" />
+  return <label className="flex cursor-pointer items-start gap-3 p-3 text-sm">
+    <input className="mt-1" type="checkbox" checked={marcado} onChange={(e) => aoMarcar(e.target.checked)} />
+    <span className="min-w-0 flex-1"><b className="block truncate">{p.nome}</b><small className="text-muted">{p.codigoBarras} · {formatBRL(p.preco)}{p.unidade?.toLowerCase() === "kg" ? "/kg" : ""}</small><span className="mt-2 block max-w-xs rounded-md border border-line bg-white p-2"><CodigoBarras valor={p.codigoBarras ?? ""} className="h-10 w-full" /></span></span>
+    <span className="flex shrink-0 items-center gap-2 text-xs text-muted">Cópias<Input aria-label={`Cópias da etiqueta de ${p.nome}`} type="number" min={1} max={100} value={copias} onChange={(e) => aoMudarCopias(Number(e.target.value))} onClick={(e) => e.stopPropagation()} className="w-16" /></span>
   </label>;
 }
 

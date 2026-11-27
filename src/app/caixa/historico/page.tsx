@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Select } from "@/components/ui/input";
 import { SkeletonLista } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ComandaDetalhe } from "@/components/caixa/comanda-detalhe";
 import { historicoComandas, type FiltroHistorico } from "@/services/comandas.service";
@@ -14,9 +14,10 @@ import { listarUsuarios } from "@/services/usuarios.service";
 import { getEstabelecimento } from "@/services/config.service";
 import { FORMA_LABEL, FORMAS } from "@/lib/labels";
 import { formatBRL, formatDataHora } from "@/lib/format";
+import { dataISOEmFuso, deslocarDataISO } from "@/lib/data";
 
-const hojeISO = () => new Date().toISOString().slice(0, 10);
-const diasAtras = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+const hojeISO = () => dataISOEmFuso();
+const diasAtras = (n: number) => deslocarDataISO(hojeISO(), -n);
 
 export default function HistoricoPage() {
   const [f, setF] = useState<FiltroHistorico>({ de: diasAtras(7), ate: hojeISO() });
@@ -63,6 +64,7 @@ export default function HistoricoPage() {
       </Card>
 
       {q.isLoading && <SkeletonLista />}
+      {q.isError && <ErrorState onRetry={() => q.refetch()} />}
       {q.data && q.data.length === 0 && <EmptyState titulo="Nada no período" descricao="Ajuste os filtros para ver outras comandas." />}
 
       {q.data && q.data.length > 0 && (

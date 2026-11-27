@@ -66,6 +66,16 @@ npm run dev
   `node db/migrar.mjs db/migrations/004_codigos_internos.sql`
 - `db/migrations/005_motivos_movimento_estoque.sql`: motivo estruturado no histórico de estoque, depois da 004:
   `node db/migrar.mjs db/migrations/005_motivos_movimento_estoque.sql`
+- `db/migrations/006_idempotencia_venda_balcao.sql`: protege venda e pagamento de repetição, depois da 005:
+  `node db/migrar.mjs db/migrations/006_idempotencia_venda_balcao.sql`
+- `db/migrations/007_plano_profissional_unico.sql`: remove o Essencial e migra os cadastros existentes para Profissional:
+  `node db/migrar.mjs db/migrations/007_plano_profissional_unico.sql`
+- `db/migrations/008_estorno_venda_balcao.sql`: registra data, operador e motivo do estorno de venda balcão:
+  `node db/migrar.mjs db/migrations/008_estorno_venda_balcao.sql`
+- `db/migrations/009_solicitacoes_estabelecimentos.sql`: fila de pedidos de contratação/inclusão de estabelecimentos:
+  `node db/migrar.mjs db/migrations/009_solicitacoes_estabelecimentos.sql`
+- `db/migrations/010_grupos_estabelecimentos.sql`: cria grupos para troca autorizada entre estabelecimentos:
+  `node db/migrar.mjs db/migrations/010_grupos_estabelecimentos.sql`
 
 ### Balcão, estoque e NFC-e
 

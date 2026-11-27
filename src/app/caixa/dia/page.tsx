@@ -129,7 +129,7 @@ function Fechamento({ caixaId }: { caixaId: string }) {
                   <td
                     className={cn(
                       "px-4 py-3 text-right font-semibold tabular-nums",
-                      l.diferenca === null ? "text-subtle" : l.diferenca === 0 ? "text-ok" : l.diferenca > 0 ? "text-info" : "text-[#ff6b7f]",
+                      l.diferenca === null ? "text-subtle" : l.diferenca === 0 ? "text-ok" : l.diferenca > 0 ? "text-info" : "text-danger-fg",
                     )}
                   >
                     {l.diferenca === null ? "—" : l.diferenca === 0 ? "OK" : formatBRL(l.diferenca)}
@@ -143,7 +143,7 @@ function Fechamento({ caixaId }: { caixaId: string }) {
                 <td
                   className={cn(
                     "px-4 py-3 text-right font-display text-2xl",
-                    !algumContado ? "text-subtle" : totalDif === 0 ? "text-ok" : totalDif > 0 ? "text-info" : "text-[#ff6b7f]",
+                    !algumContado ? "text-subtle" : totalDif === 0 ? "text-ok" : totalDif > 0 ? "text-info" : "text-danger-fg",
                   )}
                 >
                   {algumContado ? formatBRL(totalDif) : "—"}

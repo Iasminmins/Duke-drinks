@@ -18,7 +18,7 @@ create table tenants (
   slug text not null unique check (slug ~ '^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$'),
   tipo text not null default 'bar'
     check (tipo in ('bar','restaurante','hamburgueria','lanchonete','pizzaria','cafeteria','outro')),
-  plano text not null default 'essencial',
+  plano text not null default 'profissional',
   status text not null default 'trial' check (status in ('trial','ativo','suspenso','cancelado')),
   trial_ate timestamptz,
   pago_ate timestamptz,

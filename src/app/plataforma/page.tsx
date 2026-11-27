@@ -12,14 +12,17 @@ import { SkeletonLista } from "@/components/ui/skeleton";
 import { urlDoTenant } from "@/lib/host";
 import { mensagemErro } from "@/lib/errors";
 import { formatBRL, formatarCelular } from "@/lib/format";
-import { PLANOS, PRODUTO, plano as planoDe } from "@/lib/planos";
+import { PLANOS, PRODUTO, receitaProfissionalPorGrupos, plano as planoDe } from "@/lib/planos";
 import { cn } from "@/lib/utils";
 import {
   plataformaAtualizar,
+  plataformaAtualizarSolicitacao,
   plataformaEntrar,
   plataformaListar,
+  plataformaListarSolicitacoes,
   plataformaSair,
   plataformaSessao,
+  plataformaVincularEstabelecimento,
   type NegocioResumo,
 } from "@/services/plataforma.service";
 
@@ -74,15 +77,37 @@ function Entrar() {
 function Painel() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["plat-negocios"], queryFn: plataformaListar });
+  const solicitacoesQ = useQuery({ queryKey: ["plat-solicitacoes"], queryFn: plataformaListarSolicitacoes });
   const [editando, setEditando] = useState<NegocioResumo | null>(null);
+  const [destinosVinculo, setDestinosVinculo] = useState<Record<string, string>>({});
   const sair = useMutation({
     mutationFn: plataformaSair,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plat-sessao"] }),
   });
+  const atualizarSolicitacao = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "em_contato" | "resolvida" }) => plataformaAtualizarSolicitacao(id, status),
+    onSuccess: async () => {
+      toast.success("Solicitação atualizada");
+      await qc.invalidateQueries({ queryKey: ["plat-solicitacoes"] });
+    },
+    onError: (e) => toast.error(mensagemErro(e)),
+  });
+  const vincularEstabelecimento = useMutation({
+    mutationFn: ({ solicitacaoId, estabelecimentoId }: { solicitacaoId: string; estabelecimentoId: string }) =>
+      plataformaVincularEstabelecimento(solicitacaoId, estabelecimentoId),
+    onSuccess: async (total) => {
+      toast.success(`${total} estabelecimentos vinculados ao grupo`);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["plat-solicitacoes"] }),
+        qc.invalidateQueries({ queryKey: ["plat-negocios"] }),
+      ]);
+    },
+    onError: (e) => toast.error(mensagemErro(e)),
+  });
 
   const lista = q.data ?? [];
   const pagantes = lista.filter((n) => n.status === "ativo");
-  const mrr = pagantes.reduce((s, n) => s + planoDe(n.plano).precoMensal, 0);
+  const mrr = receitaProfissionalPorGrupos(pagantes);
 
   return (
     <main className="min-h-dvh bg-bg px-4 py-6 lg:px-8">
@@ -107,6 +132,59 @@ function Painel() {
             <p className="mt-1 font-display text-3xl">{v}</p>
           </div>
         ))}
+      </section>
+
+      <section className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-2xl">Solicitações de assinatura</h2>
+            <p className="text-sm text-muted">Pedidos de contratação e inclusão de estabelecimentos aguardando retorno.</p>
+          </div>
+          <span className="rounded-full bg-gold-soft px-3 py-1 text-sm font-semibold text-gold">{solicitacoesQ.data?.length ?? 0} abertas</span>
+        </div>
+        {solicitacoesQ.isLoading && <SkeletonLista className="mt-4" />}
+        {solicitacoesQ.isError && <p className="mt-4 text-sm text-red">Não foi possível carregar as solicitações.</p>}
+        {solicitacoesQ.data?.length === 0 && <p className="mt-4 text-sm text-muted">Nenhuma solicitação pendente.</p>}
+        {!!solicitacoesQ.data?.length && <div className="mt-4 divide-y divide-line">
+          {solicitacoesQ.data.map((s) => (
+            <div key={s.id} className="flex flex-wrap items-center gap-3 py-3">
+              <div className="min-w-48 flex-1">
+                <p className="font-semibold">{s.nome} · {s.quantidade} {s.quantidade === 1 ? "estabelecimento" : "estabelecimentos"}</p>
+                <p className="text-sm text-muted">{s.slug} · {s.responsavelNome ?? "Responsável não informado"} · {formatBRL(s.valorMensal)}/mês</p>
+                <p className="text-xs text-subtle">{s.responsavelEmail ?? ""}{s.responsavelCelular ? ` · ${formatarCelular(s.responsavelCelular)}` : ""} · {data(s.criadaEm)}</p>
+                <p className="mt-1 text-xs text-muted">Lojas vinculadas: {s.estabelecimentosNoGrupo} de {s.quantidade}</p>
+              </div>
+              {s.estabelecimentosNoGrupo < s.quantidade && s.responsavelEmail && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    aria-label={`Loja para vincular à solicitação de ${s.nome}`}
+                    value={destinosVinculo[s.id] ?? ""}
+                    onChange={(e) => setDestinosVinculo((atual) => ({ ...atual, [s.id]: e.target.value }))}
+                    className="h-9 min-w-44 rounded-lg border border-line bg-bg px-2 text-sm"
+                  >
+                    <option value="">Selecionar loja existente</option>
+                    {lista.filter((n) => n.id !== s.tenantId && n.estabelecimentosNoGrupo === 1 && n.responsavelEmail?.toLowerCase() === s.responsavelEmail?.toLowerCase()).map((n) => (
+                      <option key={n.id} value={n.id}>{n.nome} · {n.slug}</option>
+                    ))}
+                  </select>
+                  <Button size="sm" variant="secondary" disabled={!destinosVinculo[s.id]} loading={vincularEstabelecimento.isPending} onClick={() => {
+                    const estabelecimentoId = destinosVinculo[s.id];
+                    if (estabelecimentoId) vincularEstabelecimento.mutate({ solicitacaoId: s.id, estabelecimentoId });
+                  }}>Vincular</Button>
+                </div>
+              )}
+              {s.status === "pendente" ? (
+                <Button size="sm" variant="secondary" loading={atualizarSolicitacao.isPending} onClick={() => atualizarSolicitacao.mutate({ id: s.id, status: "em_contato" })}>
+                  Marcar contato
+                </Button>
+              ) : (
+                <Button size="sm" variant="secondary" disabled={s.estabelecimentosNoGrupo < s.quantidade} loading={atualizarSolicitacao.isPending} onClick={() => atualizarSolicitacao.mutate({ id: s.id, status: "resolvida" })}>
+                  Concluir
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>}
       </section>
 
       {q.isLoading && <SkeletonLista className="mt-6" />}

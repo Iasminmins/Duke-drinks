@@ -9,8 +9,11 @@ import { Coroa } from "@/components/brand/coroa";
 import { UserMenu } from "./user-menu";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/stores/session";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getEstabelecimento } from "@/services/config.service";
+import { alternarEstabelecimento, listarEstabelecimentosAcessiveis } from "@/services/config.service";
+import { toast } from "sonner";
+import { mensagemErro } from "@/lib/errors";
 
 export interface ItemNav {
   href: string;
@@ -47,18 +50,26 @@ export function PainelShell({
   const path = usePathname();
   const usuario = useSession((s) => s.usuario);
   const estabelecimentoQ = useQuery({ queryKey: ["estabelecimento"], queryFn: getEstabelecimento });
+  const queryClient = useQueryClient();
+  const lojasQ = useQuery({ queryKey: ["estabelecimentos-acessiveis"], queryFn: listarEstabelecimentosAcessiveis, enabled: usuario?.papel === "admin" });
+  const trocarLoja = useMutation({
+    mutationFn: alternarEstabelecimento,
+    onSuccess: (loja) => {
+      useSession.getState().entrar(loja.usuario);
+      toast.success(`Acessando ${loja.nome}`);
+      queryClient.clear();
+      window.location.assign("/admin");
+    },
+    onError: (e) => toast.error(mensagemErro(e)),
+  });
   const navVisivel = nav.filter((item) => {
     if (item.papeis && usuario?.papel !== "admin" && !item.papeis.includes(usuario?.papel as NonNullable<typeof usuario>["papel"])) return false;
-    if (item.modulo && !estabelecimentoQ.data?.modulos?.[item.modulo]) return false;
+    if (item.modulo && usuario?.papel !== "admin" && !estabelecimentoQ.data?.modulos?.[item.modulo]) return false;
     return true;
   });
   const [drawer, setDrawer] = useState(false);
   const [recolhido, setRecolhido] = useState(false);
   const [temaClaro, setTemaClaro] = useState(false);
-
-  useEffect(() => {
-    setDrawer(false);
-  }, [path]);
 
   useEffect(() => {
     setTemaClaro(localStorage.getItem("comandou:tema-painel") === "claro");
@@ -188,7 +199,7 @@ export function PainelShell({
               <li key={m.href} className="flex min-w-0 items-center gap-1.5">
                 {i > 0 && <ChevronRight className="h-4 w-4 shrink-0 text-subtle" />}
                 {i === trilha.length - 1 ? (
-                  <span className="truncate font-display text-xl text-cream lg:text-2xl">{m.label}</span>
+                  <h1 className="truncate font-display text-xl text-cream lg:text-2xl">{m.label}</h1>
                 ) : (
                   <Link href={m.href} className="truncate text-muted hover:text-cream">
                     {m.label}
@@ -198,11 +209,25 @@ export function PainelShell({
             ))}
           </ol>
           <div className="ml-auto flex items-center gap-3">
+            {lojasQ.data && lojasQ.data.length > 1 && (
+              <label className="flex min-w-0 max-w-[34vw] items-center gap-2 text-xs text-muted sm:max-w-48">
+                <span className="sr-only">Estabelecimento ativo</span>
+                <select
+                  aria-label="Estabelecimento ativo"
+                  value={lojasQ.data.find((l) => l.atual)?.id ?? ""}
+                  disabled={trocarLoja.isPending}
+                  onChange={(e) => trocarLoja.mutate(e.target.value)}
+                  className="h-9 min-w-0 max-w-full rounded-lg border border-line bg-bg-soft px-1.5 text-xs text-cream outline-none focus:border-gold sm:h-10 sm:px-2 sm:text-sm"
+                >
+                  {lojasQ.data.map((loja) => <option key={loja.id} value={loja.id}>{loja.nome}</option>)}
+                </select>
+              </label>
+            )}
             {extraHeader}
             <UserMenu temaClaro={temaClaro} alternarTema={alternarTema} />
           </div>
         </header>
-        <main className="flex-1 animate-fade-in px-4 py-6 lg:px-8">{children}</main>
+        <main className="flex-1 animate-fade-in px-4 py-5 sm:px-6 lg:px-8 lg:py-6">{children}</main>
       </div>
     </div>
   );

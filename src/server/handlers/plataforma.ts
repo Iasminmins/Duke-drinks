@@ -4,6 +4,7 @@ import { normalizarCelular } from "@/lib/celular";
 import { slugReservado, urlDaPlataforma } from "@/lib/host";
 import { MODELO_POR_TIPO, PRODUTO, TIPOS_NEGOCIO, type TipoNegocio } from "@/lib/planos";
 import { ServiceError } from "@/services/_base";
+import { podeVincularEstabelecimento } from "@/lib/grupos";
 import type { Usuario } from "@/types";
 import { poolPlataforma } from "../db";
 import { bloqueado, limpar, registrarFalha } from "../limite";
@@ -76,15 +77,17 @@ export async function cadastrarNegocio(ctx: Ctx, d: NovoNegocio): Promise<{ slug
   if (!v.disponivel) throw new ServiceError(`Endereço: ${v.motivo}`, "CONFLITO");
 
   const id = `est_${randomBytes(8).toString("hex")}`;
+  const grupoId = `grp_${randomBytes(8).toString("hex")}`;
   const modelo = MODELO_POR_TIPO[tipo];
   const c = await poolPlataforma().connect();
   let adminId = "";
   try {
     await c.query("begin");
+    await c.query("insert into grupos_estabelecimentos (id, nome) values ($1, $2)", [grupoId, nomeNegocio]);
     await c.query(
-      `insert into tenants (id, slug, tipo, plano, status, trial_ate, responsavel_nome, responsavel_email, responsavel_celular)
-       values ($1, $2, $3, 'profissional', 'trial', now() + make_interval(days => $4), $5, $6, $7)`,
-      [id, v.slug, tipo, PRODUTO.diasTeste, responsavel, email, celular],
+      `insert into tenants (id, slug, tipo, plano, status, trial_ate, responsavel_nome, responsavel_email, responsavel_celular, grupo_id)
+       values ($1, $2, $3, 'profissional', 'trial', now() + make_interval(days => $4), $5, $6, $7, $8)`,
+      [id, v.slug, tipo, PRODUTO.diasTeste, responsavel, email, celular, grupoId],
     );
     // daqui em diante tudo é gravado como sendo deste negócio (default das colunas = app.eid)
     await c.query("select set_config('app.eid', $1, true)", [id]);
@@ -221,6 +224,7 @@ export async function plataformaSessao(ctx: Ctx): Promise<boolean> {
 
 export interface NegocioResumo {
   id: string;
+  grupoId: string;
   slug: string;
   nome: string;
   tipo: string;
@@ -235,12 +239,111 @@ export interface NegocioResumo {
   criadoEm: string;
   comandas30d: number;
   ultimoPedido?: string;
+  estabelecimentosNoGrupo: number;
+}
+
+export interface SolicitacaoEstabelecimentoResumo {
+  id: string;
+  tenantId: string;
+  slug: string;
+  nome: string;
+  responsavelNome?: string;
+  responsavelEmail?: string;
+  responsavelCelular?: string;
+  quantidade: number;
+  estabelecimentosNoGrupo: number;
+  valorMensal: number;
+  status: "pendente" | "em_contato" | "resolvida";
+  criadaEm: string;
+}
+
+export async function plataformaListarSolicitacoes(ctx: Ctx): Promise<SolicitacaoEstabelecimentoResumo[]> {
+  exigirPlataforma(ctx);
+  const r = await poolPlataforma().query<SolicitacaoEstabelecimentoResumo>(
+    `select s.id, t.id as "tenantId", t.slug, e.nome,
+            t.responsavel_nome as "responsavelNome", t.responsavel_email as "responsavelEmail",
+            t.responsavel_celular as "responsavelCelular", s.quantidade,
+            (select count(*)::int from tenants g where g.grupo_id=t.grupo_id) as "estabelecimentosNoGrupo",
+            s.valor_mensal::float8 as "valorMensal", s.status, s.criado_em as "criadaEm"
+     from solicitacoes_estabelecimentos s
+     join tenants t on t.id = s.tenant_id
+     join estabelecimento e on e.id = t.id
+     where s.status <> 'resolvida'
+     order by s.criado_em desc limit 100`,
+  );
+  return r.rows;
+}
+
+export async function plataformaAtualizarSolicitacao(ctx: Ctx, id: string, status: string): Promise<void> {
+  exigirPlataforma(ctx);
+  if (!['em_contato', 'resolvida'].includes(status)) throw new ServiceError("Situação inválida");
+  const r = await poolPlataforma().query(
+    `update solicitacoes_estabelecimentos s
+     set status=$2, atualizado_em=now(), resolvido_em=case when $2='resolvida' then now() else null end
+     where s.id=$1 and ($2 <> 'resolvida' or s.quantidade <= (
+       select count(*) from tenants t where t.grupo_id=(select origem.grupo_id from tenants origem where origem.id=s.tenant_id)
+     ))`,
+    [String(id), status],
+  );
+  if (!r.rowCount) throw new ServiceError("Vincule todos os estabelecimentos solicitados antes de concluir", "CONFLITO");
+}
+
+export async function plataformaVincularEstabelecimento(ctx: Ctx, solicitacaoId: string, destinoId: string): Promise<number> {
+  exigirPlataforma(ctx);
+  const c = await poolPlataforma().connect();
+  try {
+    await c.query("begin");
+    const pedido = await c.query<{ tenantId: string; quantidade: number; grupoId: string; email: string | null; status: string }>(
+      `select t.id as "tenantId", s.quantidade, t.grupo_id as "grupoId", t.responsavel_email as email, s.status
+       from solicitacoes_estabelecimentos s join tenants t on t.id=s.tenant_id
+       where s.id=$1 for update of s`,
+      [String(solicitacaoId)],
+    );
+    const p = pedido.rows[0];
+    if (!p) throw new ServiceError("Solicitação não encontrada", "NAO_ENCONTRADO");
+    if (p.status === "resolvida") throw new ServiceError("Esta solicitação já foi concluída", "CONFLITO");
+    const destino = await c.query<{ id: string; grupoId: string; email: string | null; status: string }>(
+      `select id, grupo_id as "grupoId", responsavel_email as email, status from tenants where id=$1 for update`,
+      [String(destinoId)],
+    );
+    const d = destino.rows[0];
+    if (!d || d.status === "cancelado") throw new ServiceError("Estabelecimento de destino indisponível", "NAO_ENCONTRADO");
+    if (!p.email || p.email.trim().toLowerCase() !== d.email?.trim().toLowerCase()) {
+      throw new ServiceError("Só é possível vincular estabelecimentos com o mesmo e-mail responsável", "PROIBIDO");
+    }
+    if (p.tenantId === d.id) throw new ServiceError("Escolha outro estabelecimento", "INVALIDO");
+    if (p.grupoId !== d.grupoId) {
+      const contagemOrigem = await c.query<{ n: number }>("select count(*)::int as n from tenants where grupo_id=$1", [p.grupoId]);
+      const contagemDestino = await c.query<{ n: number }>("select count(*)::int as n from tenants where grupo_id=$1", [d.grupoId]);
+      if (!podeVincularEstabelecimento({
+        emailOrigem: p.email,
+        emailDestino: d.email,
+        lojasOrigem: Number(contagemOrigem.rows[0].n),
+        lojasDestino: Number(contagemDestino.rows[0].n),
+        quantidadeSolicitada: p.quantidade,
+      })) {
+        if (Number(contagemOrigem.rows[0].n) >= p.quantidade) throw new ServiceError("A quantidade solicitada já está vinculada", "CONFLITO");
+        throw new ServiceError("Só é possível vincular uma loja independente com o mesmo e-mail responsável", "CONFLITO");
+      }
+      await c.query("update tenants set grupo_id=$2 where id=$1", [d.id, p.grupoId]);
+    }
+    const total = await c.query<{ n: number }>("select count(*)::int as n from tenants where grupo_id=$1", [p.grupoId]);
+    await c.query("update solicitacoes_estabelecimentos set status='em_contato', atualizado_em=now() where id=$1", [String(solicitacaoId)]);
+    await c.query("commit");
+    return Number(total.rows[0].n);
+  } catch (e) {
+    await c.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
 }
 
 export async function plataformaListar(ctx: Ctx): Promise<NegocioResumo[]> {
   exigirPlataforma(ctx);
   const r = await poolPlataforma().query<NegocioResumo>(
-    `select t.id, t.slug, e.nome, t.tipo, t.plano, t.status, t.trial_ate as "trialAte", t.pago_ate as "pagoAte",
+    `select t.id, t.grupo_id as "grupoId", t.slug, e.nome, t.tipo, t.plano, t.status, t.trial_ate as "trialAte", t.pago_ate as "pagoAte",
+            (select count(*)::int from tenants g where g.grupo_id=t.grupo_id) as "estabelecimentosNoGrupo",
             t.responsavel_nome as "responsavelNome", t.responsavel_email as "responsavelEmail",
             t.responsavel_celular as "responsavelCelular", t.observacao, t.criado_em as "criadoEm",
             (select count(*)::int from comandas c where c.estabelecimento_id = t.id
@@ -259,7 +362,7 @@ export async function plataformaAtualizar(
 ): Promise<void> {
   exigirPlataforma(ctx);
   const status = d?.status && ["trial", "ativo", "suspenso", "cancelado"].includes(d.status) ? d.status : null;
-  const plano = d?.plano && ["essencial", "profissional"].includes(d.plano) ? d.plano : null;
+  const plano = d?.plano && d.plano === "profissional" ? d.plano : null;
   const data = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
   const r = await poolPlataforma().query<{ slug: string }>(
     `update tenants set

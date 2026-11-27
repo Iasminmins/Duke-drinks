@@ -88,6 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fn:
         sessao,
         tenant,
         plataformaLogada: tokenPlat?.papel === "plataforma",
+        plataformaHost: plataforma,
         ip: ipDe(req),
         iniciarSessao: (u, tenantId) => {
           novaSessao = u;

@@ -25,7 +25,8 @@ export async function getCardapio(): Promise<Cardapio> {
   const produtos = await query<Produto>(
     `${PRODUTO_SQL} where p.ativo and p.categoria_id in (select id from categorias where ativa) order by p.seq`,
   );
-  const [adicionais, setores] = await Promise.all([query<Adicional>(ADICIONAL_SQL), query<Setor>(SETOR_SQL)]);
+  const adicionais = await query<Adicional>(ADICIONAL_SQL);
+  const setores = await query<Setor>(SETOR_SQL);
   return { categorias, produtos: ordenarProdutos(produtos, categorias), adicionais, setores };
 }
 
@@ -33,7 +34,8 @@ export async function getCardapioAdmin(ctx: Ctx): Promise<Cardapio> {
   exigir(ctx, "admin");
   const categorias = await query<Categoria>(`${CATEGORIA_SQL} order by ordem, nome`);
   const produtos = await query<Produto>(`${PRODUTO_SQL} order by p.seq`);
-  const [adicionais, setores] = await Promise.all([query<Adicional>(ADICIONAL_SQL), query<Setor>(SETOR_SQL)]);
+  const adicionais = await query<Adicional>(ADICIONAL_SQL);
+  const setores = await query<Setor>(SETOR_SQL);
   return { categorias, produtos: ordenarProdutos(produtos, categorias), adicionais, setores };
 }
 

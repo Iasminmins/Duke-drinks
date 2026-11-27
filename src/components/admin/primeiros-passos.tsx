@@ -9,6 +9,7 @@ import { Check, Copy } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { getPrimeirosPassos } from "@/services/plataforma.service";
 import { cn } from "@/lib/utils";
+import { usaFluxoComandas } from "@/lib/planos";
 
 const CHAVE_ESCONDIDO = "primeiros-passos-escondido";
 
@@ -35,8 +36,7 @@ export function PrimeirosPassos() {
   const d = q.data;
   if (!d || escondido) return null;
 
-  const salão = ["bar", "restaurante", "hamburgueria", "lanchonete", "pizzaria", "cafeteria"].includes(d.tipoNegocio);
-  const passos = d.modulos?.balcao && !salão
+  const passos = d.modulos?.balcao && !usaFluxoComandas(d.tipoNegocio)
     ? [
         { feito: d.produtos > 0, titulo: "Cadastre os produtos", texto: "Inclua nome, preço e unidade para começar as vendas.", href: "/admin/produtos", acao: "Cadastrar produtos" },
         { feito: d.comCodigoBarras > 0, titulo: "Cadastre códigos de barras", texto: "Bipe os produtos no caixa ou gere um código interno no cadastro.", href: "/admin/produtos", acao: "Adicionar códigos", },

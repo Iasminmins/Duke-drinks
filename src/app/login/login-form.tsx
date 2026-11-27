@@ -51,7 +51,7 @@ export function LoginForm() {
   const pronto = (!plataforma || empresa.trim().length > 0) && usuario.trim().length > 0 && senha.length > 0;
 
   return (
-    <main className={plataforma ? "tema-comandou min-h-dvh px-4 py-8 sm:py-12" : "bg-pub flex min-h-dvh items-center justify-center px-4 py-10"}>
+    <main className={plataforma ? "tema-comandou flex min-h-dvh items-start justify-center px-4 py-8 sm:items-center sm:py-10" : "bg-pub flex min-h-dvh items-center justify-center px-4 py-10"}>
       {plataforma && <FontesComandou />}
       <div className="w-full max-w-md">
         <div className="flex justify-center">

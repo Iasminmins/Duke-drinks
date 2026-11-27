@@ -6,6 +6,7 @@ import { RoleGuard } from "@/components/layout/role-guard";
 import { PainelShell, type ItemNav } from "@/components/layout/painel-shell";
 import { Badge } from "@/components/ui/badge";
 import { getCaixaAberto } from "@/services/caixa.service";
+import { useSession } from "@/stores/session";
 
 const NAV: ItemNav[] = [
   { href: "/caixa", label: "Operação", icon: ConciergeBell, somenteGrupo: true },
@@ -23,11 +24,14 @@ function StatusCaixa() {
 }
 
 export default function CaixaLayout({ children }: { children: React.ReactNode }) {
+  const usuario = useSession((s) => s.usuario);
   return (
     <RoleGuard papeis={["caixa"]}>
-      <PainelShell nav={NAV} titulo="Caixa" migalhas={MIGALHAS} recolhivel extraHeader={<StatusCaixa />}>
-        {children}
-      </PainelShell>
+      {usuario?.papel === "admin" ? children : (
+        <PainelShell nav={NAV} titulo="Caixa" migalhas={MIGALHAS} recolhivel extraHeader={<StatusCaixa />}>
+          {children}
+        </PainelShell>
+      )}
     </RoleGuard>
   );
 }

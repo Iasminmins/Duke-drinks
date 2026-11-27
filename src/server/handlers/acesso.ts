@@ -1,12 +1,13 @@
 import "server-only";
 import { ServiceError } from "@/services/_base";
+import { podeAlternarEstabelecimento } from "@/lib/grupos";
 import type { Estabelecimento, Papel, Usuario } from "@/types";
 import { poolPlataforma, query, tx, um } from "../db";
 import { bloqueado, limpar, registrarFalha } from "../limite";
 import { exigir, exigirEquipe, exigirTenant, erroAmigavel, type Ctx } from "../comum";
-import { situacao } from "../tenant";
+import { esquecerTenant, situacao } from "../tenant";
 import { lerToken } from "../sessao";
-import { plano as planoDe, PLANOS } from "@/lib/planos";
+import { plano as planoDe, precoProfissionalPorQuantidade, PLANOS, categoriasModeloFaltantes, MODELO_POR_TIPO, TIPOS_NEGOCIO, type TipoNegocio } from "@/lib/planos";
 
 const PAPEIS: Papel[] = ["admin", "caixa", "garcom", "cozinha", "bar"];
 const USUARIO_SQL = `select id, nome, papel, ativo, login from usuarios`;
@@ -170,6 +171,63 @@ export async function getEstabelecimento(): Promise<Estabelecimento> {
   return e;
 }
 
+export async function getTipoNegocio(ctx: Ctx): Promise<string> {
+  exigir(ctx, "admin");
+  return exigirTenant(ctx).tipo;
+}
+
+export interface EstabelecimentoAcessivel {
+  id: string;
+  slug: string;
+  nome: string;
+  atual: boolean;
+}
+
+export async function listarEstabelecimentosAcessiveis(ctx: Ctx): Promise<EstabelecimentoAcessivel[]> {
+  exigir(ctx, "admin");
+  const tenant = exigirTenant(ctx);
+  if (!ctx.plataformaHost) return [{ id: tenant.id, slug: tenant.slug, nome: tenant.slug, atual: true }];
+  const r = await poolPlataforma().query<EstabelecimentoAcessivel>(
+    `select t.id, t.slug, e.nome, (t.id=$1) as atual
+     from tenants atual
+     join tenants t on t.grupo_id=atual.grupo_id and t.status <> 'cancelado'
+     join estabelecimento e on e.id=t.id
+     where atual.id=$1 order by (t.id=$1) desc, e.nome`,
+    [tenant.id],
+  );
+  return r.rows;
+}
+
+/** Alterna a sessão de administrador somente entre lojas vinculadas ao mesmo grupo. */
+export async function alternarEstabelecimento(ctx: Ctx, destinoId: unknown): Promise<{ slug: string; nome: string; usuario: Usuario }> {
+  const sessao = exigir(ctx, "admin");
+  const origem = exigirTenant(ctx);
+  if (!ctx.plataformaHost) throw new ServiceError("A troca de estabelecimento só funciona pelo endereço principal", "PROIBIDO");
+  const id = String(destinoId ?? "").trim();
+  if (!id) throw new ServiceError("Selecione um estabelecimento", "INVALIDO");
+  const permitido = await poolPlataforma().query<{ id: string; slug: string; nome: string; mesmoGrupo: boolean; cancelado: boolean }>(
+    `select destino.id, destino.slug, e.nome,
+            (destino.grupo_id=atual.grupo_id) as "mesmoGrupo", (destino.status='cancelado') as cancelado
+     from tenants atual
+     join tenants destino on destino.id=$2
+     join estabelecimento e on e.id=destino.id
+     where atual.id=$1`,
+    [origem.id, id],
+  );
+  const loja = permitido.rows[0];
+  if (!loja || !podeAlternarEstabelecimento({ papel: sessao.papel, mesmoGrupo: loja.mesmoGrupo, cancelado: loja.cancelado })) {
+    throw new ServiceError("Este estabelecimento não está vinculado ao seu grupo", "PROIBIDO");
+  }
+  const admin = await poolPlataforma().query<Usuario>(
+    `select id, nome, papel, ativo, login from usuarios
+     where estabelecimento_id=$1 and papel='admin' and ativo order by criado_em limit 1`,
+    [loja.id],
+  );
+  if (!admin.rows[0]) throw new ServiceError("A loja vinculada ainda não tem um administrador ativo", "CONFLITO");
+  ctx.iniciarSessao(admin.rows[0], loja.id);
+  return { slug: loja.slug, nome: loja.nome, usuario: admin.rows[0] };
+}
+
 export interface EstadoFiscal {
   habilitado: boolean;
   estado: "pendente" | "homologacao" | "producao";
@@ -257,6 +315,58 @@ export async function salvarEstabelecimento(ctx: Ctx, dados: Partial<Estabelecim
   }
   if (sets.length) await query(`update estabelecimento set ${sets.join(", ")}`, vals);
   return getEstabelecimento();
+}
+
+/** Aplica o modelo sem apagar produtos, categorias nem nomes de setores existentes. */
+export async function aplicarModeloTipoNegocio(ctx: Ctx, tipoBruto: unknown): Promise<{ tipo: TipoNegocio; categoriasAdicionadas: string[]; setoresAdicionados: string[] }> {
+  exigir(ctx, "admin");
+  const tenant = exigirTenant(ctx);
+  const tipo = String(tipoBruto ?? "") as TipoNegocio;
+  if (!TIPOS_NEGOCIO.some((x) => x.id === tipo)) throw new ServiceError("Selecione um tipo de negócio válido");
+  const modelo = MODELO_POR_TIPO[tipo];
+  const c = await poolPlataforma().connect();
+  const categoriasAdicionadas: string[] = [];
+  const setoresAdicionados: string[] = [];
+  try {
+    await c.query("begin");
+    await c.query("select set_config('app.eid', $1, true)", [tenant.id]);
+    await c.query("set local role app_rls");
+    await c.query("select pg_advisory_xact_lock(hashtext($1))", [`modelo:${tenant.id}`]);
+
+    const categorias = await c.query<{ nome: string }>("select nome from categorias");
+    const faltantes = categoriasModeloFaltantes(tipo, categorias.rows.map((x) => x.nome));
+    for (const nome of faltantes) {
+      const r = await c.query(
+        `insert into categorias (nome, ordem, ativa)
+         select $1, coalesce((select max(ordem) + 10 from categorias), 10), true
+         where not exists (select 1 from categorias c where lower(c.nome) = lower($1))
+         returning nome`,
+        [nome],
+      );
+      if (r.rowCount) categoriasAdicionadas.push(nome);
+    }
+
+    const setores = await c.query<{ slug: string }>("select slug from setores");
+    const existentes = new Set(setores.rows.map((x) => x.slug));
+    for (const setor of modelo.setores) {
+      if (existentes.has(setor.slug)) continue;
+      const r = await c.query("insert into setores (slug, nome) values ($1, $2) on conflict (estabelecimento_id, slug) do nothing returning id", [setor.slug, setor.nome]);
+      if (r.rowCount) setoresAdicionados.push(setor.nome);
+    }
+
+    await c.query("reset role");
+    const atualizado = await c.query("update tenants set tipo=$2 where id=$1", [tenant.id, tipo]);
+    if (!atualizado.rowCount) throw new ServiceError("Estabelecimento não encontrado", "NAO_ENCONTRADO");
+    await c.query("commit");
+    esquecerTenant(tenant.slug);
+    return { tipo, categoriasAdicionadas, setoresAdicionados };
+  } catch (e) {
+    await c.query("rollback").catch(() => {});
+    if ((e as { code?: string })?.code === "23514") throw new ServiceError("Este tipo ainda não foi liberado no banco. Aplique a migração mais recente.", "CONFLITO");
+    throw e;
+  } finally {
+    c.release();
+  }
 }
 
 /**
@@ -352,4 +462,32 @@ export async function getAssinatura(ctx: Ctx): Promise<Assinatura> {
     pixChave: process.env.PLATAFORMA_PIX_CHAVE || undefined,
     whatsapp: process.env.PLATAFORMA_WHATSAPP || undefined,
   };
+}
+
+export interface SolicitacaoEstabelecimento {
+  id: string;
+  quantidade: number;
+  valorMensal: number;
+  status: "pendente" | "em_contato" | "resolvida";
+  criadaEm: string;
+}
+
+/** Registra uma contratação/inclusão para análise; não muda tenant ativo nem libera outras lojas. */
+export async function solicitarEstabelecimentos(ctx: Ctx, quantidade: number): Promise<SolicitacaoEstabelecimento> {
+  exigir(ctx, "admin");
+  const tenant = exigirTenant(ctx);
+  const unidades = Number(quantidade);
+  if (!Number.isInteger(unidades) || unidades < 1 || unidades > 20) {
+    throw new ServiceError("Escolha de 1 a 20 estabelecimentos");
+  }
+  const valor = precoProfissionalPorQuantidade(unidades);
+  const r = await poolPlataforma().query<SolicitacaoEstabelecimento>(
+    `insert into solicitacoes_estabelecimentos (tenant_id, quantidade, valor_mensal)
+     values ($1,$2,$3)
+     on conflict (tenant_id) where status = 'pendente'
+     do update set quantidade = excluded.quantidade, valor_mensal = excluded.valor_mensal, atualizado_em = now()
+     returning id, quantidade, valor_mensal::float8 as "valorMensal", status, criado_em as "criadaEm"`,
+    [tenant.id, unidades, valor],
+  );
+  return r.rows[0];
 }

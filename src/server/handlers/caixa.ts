@@ -50,7 +50,9 @@ export async function registrarPagamento(
   return tx(async (c) => {
     const anterior = await pagamentoPorChave(c, requestKey, requestHash);
     if (anterior) return anterior;
-    const caixa = await um<{ id: string }>(`select id from caixas where fechado_em is null limit 1`, [], c);
+    // O mesmo lock é usado pelo fechamento: o pagamento termina antes do caixa fechar,
+    // ou encontra o caixa fechado e não é lançado depois do encerramento.
+    const caixa = await um<{ id: string }>(`select id from caixas where fechado_em is null limit 1 for update`, [], c);
     if (!caixa) throw new ServiceError("Abra o caixa antes de registrar pagamentos", "PROIBIDO");
     // Serializa as tentativas entre caixas e reconhece a mesma requisição antes de calcular o restante.
     const repetido = await pagamentoPorChave(c, requestKey, requestHash);
@@ -98,10 +100,8 @@ async function pagamentoPorChave(c: Q, chave: string, hash: string): Promise<{ p
   );
   if (!registro) return null;
   if (registro.requestHash !== hash) throw new ServiceError("Esta tentativa já registrou outro pagamento. Confira a comanda antes de tentar novamente.", "CONFLITO");
-  const [pagamento, status] = await Promise.all([
-    um<Pagamento>(`select ${PAGAMENTO_RET} from pagamentos where id=$1`, [registro.id], c),
-    um<{ status: string }>(`select status from comandas where id=$1`, [registro.comandaId], c),
-  ]);
+  const pagamento = await um<Pagamento>(`select ${PAGAMENTO_RET} from pagamentos where id=$1`, [registro.id], c);
+  const status = await um<{ status: string }>(`select status from comandas where id=$1`, [registro.comandaId], c);
   if (!pagamento) return null;
   return { pagamento, comandaFechada: status?.status === "fechada" };
 }
@@ -114,7 +114,7 @@ export async function estornarPagamento(ctx: Ctx, pagamentoId: string, motivo: s
   await tx(async (c) => {
     const pg = await um<{ estornado: boolean; comandaId: string; fechadoEm: string | null }>(
       `select p.estornado, p.comanda_id as "comandaId", cx.fechado_em as "fechadoEm"
-       from pagamentos p join caixas cx on cx.id = p.caixa_id where p.id = $1 for update of p`,
+       from pagamentos p join caixas cx on cx.id = p.caixa_id where p.id = $1 for update of p, cx`,
       [pagamentoId],
       c,
     );
@@ -138,7 +138,10 @@ async function resumo(c: Q, caixaId: string): Promise<ResumoCaixa> {
   if (!caixa) throw new ServiceError("Caixa não encontrado", "NAO_ENCONTRADO");
   const pgs = await query<{ forma: FormaPagamento; valor: number; troco: number | null }>(
     `select forma, valor, troco from pagamentos where caixa_id = $1 and not estornado
-     union all select forma, valor, troco from pagamentos_venda_balcao where caixa_id = $1`,
+     union all
+     select pg.forma, pg.valor, pg.troco
+     from pagamentos_venda_balcao pg join vendas_balcao v on v.id = pg.venda_id
+     where pg.caixa_id = $1 and v.status = 'concluida'`,
     [caixaId],
     c,
   );

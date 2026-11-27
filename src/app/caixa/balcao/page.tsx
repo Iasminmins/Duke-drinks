@@ -3,20 +3,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Barcode, Minus, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
+import { Barcode, Camera, Minus, Plus, Printer, ShoppingCart, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Field, Input, Select } from "@/components/ui/input";
+import { Dialog } from "@/components/ui/dialog";
+import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { getEstabelecimento, getEstadoFiscal } from "@/services/config.service";
-import { emitirNfce, listarProdutosBalcao, listarVendasBalcao, registrarVendaBalcao, type ProdutoEstoque } from "@/services/balcao.service";
+import { emitirNfce, estornarVendaBalcao, listarProdutosBalcao, listarVendasBalcao, registrarVendaBalcao, type ProdutoEstoque } from "@/services/balcao.service";
 import { FORMA_LABEL, FORMAS } from "@/lib/labels";
 import { formatBRL } from "@/lib/format";
 import { mensagemErro } from "@/lib/errors";
 import { round2 } from "@/lib/utils";
 import type { FormaPagamento, VendaBalcao } from "@/types";
 import { ComprovanteVenda } from "@/components/caixa/comprovante-venda";
+import { ScannerCamera } from "@/components/caixa/scanner-camera";
 
 type Linha = { produto: ProdutoEstoque; quantidade: number; entradaPeso?: string };
 const peso = (q: number) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(q);
@@ -38,6 +40,7 @@ export default function BalcaoPage() {
   const produtosQ = useQuery({ queryKey: ["produtos-balcao"], queryFn: listarProdutosBalcao });
   const vendasQ = useQuery({ queryKey: ["vendas-balcao"], queryFn: listarVendasBalcao });
   const [termo, setTermo] = useState("");
+  const [cameraAberta, setCameraAberta] = useState(false);
   const [carrinho, setCarrinho] = useState<Linha[]>([]);
   const [forma, setForma] = useState<FormaPagamento>("dinheiro");
   const [recebido, setRecebido] = useState(0);
@@ -48,6 +51,8 @@ export default function BalcaoPage() {
   const [errosPeso, setErrosPeso] = useState<Record<string, string>>({});
   const chaveVenda = useRef<string | null>(null);
   const [vendaParaImprimir, setVendaParaImprimir] = useState<VendaBalcao | null>(null);
+  const [vendaParaEstornar, setVendaParaEstornar] = useState<VendaBalcao | null>(null);
+  const [motivoEstorno, setMotivoEstorno] = useState("");
   const totalBruto = round2(carrinho.reduce((s, l) => s + l.produto.preco * l.quantidade, 0));
   const total = round2(totalBruto - Math.min(Math.max(desconto, 0), totalBruto));
   const temPesoPendente = carrinho.some((l) => l.produto.unidade?.toLowerCase() === "kg" && l.quantidade <= 0);
@@ -87,6 +92,18 @@ export default function BalcaoPage() {
     });
     setTermo("");
     campo.current?.focus();
+  }
+
+  function receberCodigoCamera(codigo: string) {
+    const cod = codigo.trim().toUpperCase().replace(/\s/g, "");
+    const encontrado = (produtosQ.data ?? []).find((p) => p.codigoBarras === cod);
+    setCameraAberta(false);
+    if (encontrado) adicionar(encontrado);
+    else {
+      setTermo(codigo);
+      toast.error("Código não encontrado. Confira o cadastro do produto em Admin → Produtos.");
+      window.setTimeout(() => campo.current?.focus(), 100);
+    }
   }
 
   function alterar(id: string, quantidade: number) {
@@ -150,6 +167,20 @@ export default function BalcaoPage() {
     onSuccess: async () => { toast.success("NFC-e atualizada"); await qc.invalidateQueries({ queryKey: ["vendas-balcao"] }); },
     onError: () => toast.error("Não foi possível atualizar a NFC-e. A venda continua salva; confira a configuração com o administrador e tente novamente."),
   });
+  const estorno = useMutation({
+    mutationFn: () => estornarVendaBalcao(vendaParaEstornar!.id, motivoEstorno),
+    onSuccess: async () => {
+      toast.success("Venda estornada e estoque atualizado");
+      setVendaParaEstornar(null);
+      setMotivoEstorno("");
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["produtos-balcao"] }),
+        qc.invalidateQueries({ queryKey: ["vendas-balcao"] }),
+        qc.invalidateQueries({ queryKey: ["resumo-caixa"] }),
+      ]);
+    },
+    onError: (e) => toast.error(mensagemErro(e)),
+  });
 
   if (estQ.data && !estQ.data.modulos?.balcao) return <div className="mx-auto max-w-xl pt-10"><EmptyState titulo="Balcão desativado" descricao="Um administrador pode ativar Caixa de balcão em Admin → Configurações → Recursos deste estabelecimento." /></div>;
 
@@ -158,9 +189,10 @@ export default function BalcaoPage() {
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="space-y-4">
         <Card className="p-3">
-          <div className="relative">
-            <Barcode className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gold" />
-            <Input ref={campo} autoFocus placeholder="Bipe ou pesquise um produto" aria-label="Bipar código de barras ou pesquisar produto" value={termo}
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Barcode className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gold" />
+              <Input ref={campo} autoFocus placeholder="Bipe ou pesquise um produto" aria-label="Bipar código de barras ou pesquisar produto" value={termo}
               onChange={(e) => setTermo(e.target.value)} onKeyDown={(e) => {
                 if (e.key !== "Enter") return;
                 e.preventDefault();
@@ -171,6 +203,8 @@ export default function BalcaoPage() {
                 else if (sugestoes.length > 1) toast.error("Mais de um produto encontrado. Selecione o item correto na lista.");
                 else toast.error("Código ou produto não encontrado. Cadastre o código em Admin → Produtos.");
               }} className="pl-11" />
+            </div>
+            <Button type="button" variant="secondary" aria-label="Bipar produto com a câmera do celular" onClick={() => setCameraAberta(true)}><Camera className="h-4 w-4" /><span className="hidden sm:inline">Câmera</span></Button>
           </div>
           {termo && <div className="mt-2 divide-y divide-line rounded-lg border border-line bg-bg-soft">
             {sugestoes.map((p) => <button key={p.id} disabled={p.esgotado} onClick={() => adicionar(p)} className="flex w-full items-center gap-3 p-3 text-left hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60">
@@ -236,10 +270,39 @@ export default function BalcaoPage() {
       </Card>
     </div>
     <div className="mt-8"><h2 className="mb-3 font-display text-2xl">Vendas recentes</h2><Card className="divide-y divide-line">
-      {(vendasQ.data ?? []).slice(0, 12).map((v: VendaBalcao) => <div key={v.id} className="flex flex-wrap items-center gap-3 p-3 text-sm"><b>#{v.numero}</b><span className="flex-1 text-muted">{new Date(v.criadoEm).toLocaleString("pt-BR")}</span><span>{v.itens.map((i) => `${i.quantidade} ${i.unidade} ${i.nome}`).join(", ")}</span><b>{formatBRL(v.total)}</b><Button size="sm" variant="secondary" onClick={() => setVendaParaImprimir(v)}><Printer className="h-4 w-4" /> Comprovante</Button>{v.fiscal && <span className={v.fiscal.status === "autorizado" ? "text-ok" : "text-warn"}>NFC-e: {v.fiscal.status}{v.fiscal.numero ? ` · ${v.fiscal.numero}` : ""}</span>}{v.fiscal?.status === "autorizado" && v.fiscal.urlQrcode && <a className="text-gold underline" href={v.fiscal.urlQrcode} target="_blank" rel="noreferrer">Ver QR da NFC-e</a>}{v.fiscal && v.fiscal.status !== "autorizado" && <Button size="sm" variant="secondary" loading={retryFiscal.isPending} onClick={() => retryFiscal.mutate(v.id)}>Tentar NFC-e</Button>}</div>)}
+      {(vendasQ.data ?? []).slice(0, 12).map((v: VendaBalcao) => <div key={v.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+        <b>#{v.numero}</b>
+        <span className="flex-1 text-muted">{new Date(v.criadoEm).toLocaleString("pt-BR")}</span>
+        <span>{v.itens.map((i) => `${i.quantidade} ${i.unidade} ${i.nome}`).join(", ")}</span>
+        <b>{formatBRL(v.total)}</b>
+        {v.status === "cancelada" ? <span className="rounded-full bg-red-soft px-2 py-1 text-xs text-danger-fg">Estornada</span> : <>
+          {!v.fiscal && !v.caixaFechado && <Button size="sm" variant="danger" onClick={() => setVendaParaEstornar(v)}><Undo2 className="h-4 w-4" /> Estornar</Button>}
+          <Button size="sm" variant="secondary" onClick={() => setVendaParaImprimir(v)}><Printer className="h-4 w-4" /> Comprovante</Button>
+        </>}
+        {v.motivoCancelamento && <span className="w-full text-xs text-muted">Motivo do estorno: {v.motivoCancelamento}</span>}
+        {v.fiscal && <span className={v.fiscal.status === "autorizado" ? "text-ok" : "text-warn"}>NFC-e: {v.fiscal.status}{v.fiscal.numero ? ` · ${v.fiscal.numero}` : ""} · estorno requer cancelamento fiscal</span>}
+        {v.fiscal?.status === "autorizado" && v.fiscal.urlQrcode && <a className="text-gold underline" href={v.fiscal.urlQrcode} target="_blank" rel="noreferrer">Ver QR da NFC-e</a>}
+        {v.fiscal && v.fiscal.status !== "autorizado" && <Button size="sm" variant="secondary" loading={retryFiscal.isPending} onClick={() => retryFiscal.mutate(v.id)}>Tentar NFC-e</Button>}
+      </div>)}
       {!vendasQ.data?.length && <p className="p-4 text-sm text-muted">As vendas deste caixa aparecem aqui.</p>}
     </Card></div>
     {vendaParaImprimir && <ComprovanteVenda venda={vendaParaImprimir} estabelecimento={estQ.data} />}
+    <Dialog
+      open={!!vendaParaEstornar}
+      onClose={() => { if (!estorno.isPending) { setVendaParaEstornar(null); setMotivoEstorno(""); } }}
+      titulo={`Estornar venda${vendaParaEstornar ? ` #${vendaParaEstornar.numero}` : ""}`}
+      descricao={vendaParaEstornar ? `${formatBRL(vendaParaEstornar.total)} · o estoque controlado será devolvido e o valor sairá do fechamento do caixa.` : undefined}
+      largura="sm"
+      rodape={<div className="flex gap-2">
+        <Button variant="secondary" block disabled={estorno.isPending} onClick={() => { setVendaParaEstornar(null); setMotivoEstorno(""); }}>Voltar</Button>
+        <Button variant="danger" block disabled={motivoEstorno.trim().length < 5} loading={estorno.isPending} onClick={() => estorno.mutate()}>Confirmar estorno</Button>
+      </div>}
+    >
+      <Field label="Motivo do estorno" htmlFor="motivo-estorno-venda" dica="O estorno de dinheiro, Pix ou cartão deve ser feito também na forma de pagamento original.">
+        <Textarea id="motivo-estorno-venda" value={motivoEstorno} onChange={(e) => setMotivoEstorno(e.target.value)} maxLength={200} />
+      </Field>
+    </Dialog>
+    {cameraAberta && <ScannerCamera onCode={receberCodigoCamera} onClose={() => setCameraAberta(false)} codigosProdutos={(produtosQ.data ?? []).map((produto) => produto.codigoBarras ?? "").filter(Boolean)} />}
     <style jsx global>{`
       .comprovante-venda { display: none; }
       @page { size: 80mm auto; margin: 3mm; }

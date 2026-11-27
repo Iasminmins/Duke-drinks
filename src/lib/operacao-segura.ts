@@ -16,3 +16,17 @@ export function quantidadeVendaValida(valor: number): boolean {
 export function saldoPermiteVenda(controlaEstoque: boolean, saldo: number, quantidade: number): boolean {
   return !controlaEstoque || quantidade <= saldo;
 }
+
+/** Venda só pode ser revertida no caixa aberto quando não existe documento fiscal associado. */
+export function vendaBalcaoPodeSerEstornada(dados: {
+  status: string;
+  caixaFechado: boolean;
+  fiscalStatus?: string | null;
+}): boolean {
+  return dados.status === "concluida" && !dados.caixaFechado && !dados.fiscalStatus;
+}
+
+/** Regras de entrada de pedidos após bloquear a comanda na transação. */
+export function pedidoPodeSerCriado(dados: { status: string; origem: "cliente" | "garcom"; codigoValido: boolean }): boolean {
+  return dados.status === "aberta" && (dados.origem === "garcom" || dados.codigoValido);
+}

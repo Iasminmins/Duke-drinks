@@ -40,7 +40,7 @@ export default function ChamadosPage() {
               href={`/garcom/comanda/${n.comandaNumero}`}
               className={cn(
                 "grid h-14 w-14 shrink-0 place-items-center rounded-lg font-display text-3xl",
-                n.tipo === "chamado" ? "bg-red-soft text-[#ff6b7f]" : "bg-gold-soft text-gold",
+                n.tipo === "chamado" ? "bg-red-soft text-danger-fg" : "bg-gold-soft text-gold",
               )}
             >
               {n.comandaNumero}

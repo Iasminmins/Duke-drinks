@@ -18,6 +18,7 @@
   --color-red: #c8102e;
   --color-red-600: #a50d26;
   --color-red-soft: #c8102e26;
+  --color-danger-fg: #ff6b7f;
 
   --color-gold: #f5b800;
   --color-gold-600: #d49f00;
@@ -134,6 +135,7 @@
   --color-gold-soft: #2340d91a;
   --color-ok: #1f8a4c;
   --color-red: #b3261e;
+  --color-danger-fg: #8f1027;
   color-scheme: light;
   background: #ffffff;
   color: var(--color-cream);
@@ -158,6 +160,7 @@
   --color-muted: #555b66;
   --color-subtle: #777e89;
   --color-red-soft: #fce7eb;
+  --color-danger-fg: #a50d26;
   --color-gold: #956500;
   --color-gold-600: #765000;
   --color-gold-soft: #9565001a;
